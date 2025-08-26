@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="head.png" alt="Healthcare Pipeline Automation" width="600"/>
+  <img src="head.png" alt="Healthcare Pipeline Automation" width="800"/>
   
-  # 🏥 Healthcare Patient Care Coordination Pipeline
+ # 🏥 Automated Patient Care Coordination System [in dev]
   
   [![n8n](https://img.shields.io/badge/n8n-✓-green.svg)](https://n8n.io/)
   [![Docker](https://img.shields.io/badge/Docker-✓-blue.svg)](https://www.docker.com/)
