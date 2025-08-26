@@ -1,0 +1,65 @@
+{
+  "display_information": {
+    "name": "Healthcare Pipeline Bot",
+    "description": "HIPAA-compliant patient care coordination and specialist assignment bot",
+    "background_color": "#2c5aa0"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Healthcare Pipeline",
+      "always_online": true
+    },
+    "slash_commands": [
+      {
+        "command": "/patient-status",
+        "url": "http://your-n8n-url:5678/webhook/slack-command",
+        "description": "Check patient case status",
+        "usage_hint": "case-id"
+      },
+      {
+        "command": "/accept-case",
+        "url": "http://your-n8n-url:5678/webhook/accept-case",
+        "description": "Accept a patient case assignment",
+        "usage_hint": "case-id"
+      }
+    ]
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "app_mentions:read",
+        "channels:read",
+        "chat:write",
+        "chat:write.public",
+        "commands",
+        "groups:read",
+        "im:history",
+        "im:read",
+        "im:write",
+        "mpim:read",
+        "reactions:read",
+        "reactions:write",
+        "users:read",
+        "users:read.email"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "request_url": "http://your-n8n-url:5678/webhook/slack-events",
+      "bot_events": [
+        "app_mention",
+        "message.im",
+        "reaction_added"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": true,
+      "request_url": "http://your-n8n-url:5678/webhook/slack-interaction"
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "is_hosted": false,
+    "token_rotation_enabled": false
+  }
+}

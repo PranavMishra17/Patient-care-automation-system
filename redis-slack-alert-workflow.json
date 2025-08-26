@@ -1,0 +1,291 @@
+{
+  "name": "Redis Slack Alert Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "slack-channel-message",
+        "options": {}
+      },
+      "id": "slack-message-webhook",
+      "name": "Slack Channel Message Handler",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "slack-channel-message"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse incoming Slack event\nconst event = $json.event || $json;\n\n// Check if this is a message event in our monitored channel\nif (event.type === 'message' && event.channel === 'redis-alerts' && !event.bot_id) {\n  const message = {\n    messageId: event.ts,\n    channelId: event.channel,\n    userId: event.user,\n    text: event.text,\n    timestamp: new Date().toISOString(),\n    redisKey: `slack_alert:${event.ts}`,\n    shouldAlert: event.text.toLowerCase().includes('patient') || \n                 event.text.toLowerCase().includes('urgent') ||\n                 event.text.toLowerCase().includes('case')\n  };\n  \n  return [{ json: message }];\n} else {\n  // Skip non-message events or bot messages\n  return [];\n}"
+      },
+      "id": "parse-slack-message",
+      "name": "Parse Slack Message Event",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.shouldAlert}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-alert-worthy",
+      "name": "Check If Alert Worthy",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{$json.redisKey}}",
+        "value": "={{JSON.stringify($json)}}",
+        "ttl": 3600
+      },
+      "id": "store-alert-redis",
+      "name": "Store Alert in Redis",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [900, 260],
+      "credentials": {
+        "redis": {
+          "id": "redis-healthcare",
+          "name": "Healthcare Redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT patient_email FROM patient_medical_history WHERE patient_email IS NOT NULL LIMIT 5;",
+        "additionalFields": {}
+      },
+      "id": "get-active-patients",
+      "name": "Get Active Patients",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [900, 380],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-healthcare",
+          "name": "Healthcare PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process patients for notification\nconst alertData = $('Parse Slack Message Event').first().json;\nconst patients = $json;\n\nconst notifications = patients.map(patient => ({\n  patientEmail: patient.patient_email,\n  alertMessage: `Healthcare System Alert: ${alertData.text}`,\n  slackMessageId: alertData.messageId,\n  timestamp: alertData.timestamp,\n  redisKey: `patient_alert:${patient.patient_email}:${alertData.messageId}`\n}));\n\nreturn notifications.map(notification => ({ json: notification }));"
+      },
+      "id": "process-patient-alerts",
+      "name": "Process Patient Alerts",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{$json.redisKey}}",
+        "value": "={{JSON.stringify($json)}}",
+        "ttl": 86400
+      },
+      "id": "cache-patient-alert",
+      "name": "Cache Patient Alert",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [1340, 320],
+      "credentials": {
+        "redis": {
+          "id": "redis-healthcare",
+          "name": "Healthcare Redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.SENDGRID_FROM_EMAIL}}",
+        "toEmail": "={{$json.patientEmail}}",
+        "subject": "Healthcare System Alert - Important Information",
+        "text": "",
+        "html": "=<html><body><h2>Healthcare System Alert</h2><p>Dear Patient,</p><p>We wanted to inform you of an important update from our healthcare team:</p><div style=\"background: #f0f7ff; padding: 15px; border-left: 4px solid #2c5aa0; margin: 20px 0;\"><strong>Alert Message:</strong><br>{{$json.alertMessage}}</div><p>If this message requires any action on your part, our team will contact you directly.</p><p>If you have questions or concerns, please contact our office.</p><p>Thank you,<br>Healthcare Team</p><p style=\"font-size: 12px; color: #666;\">Alert ID: {{$json.slackMessageId}} | Sent: {{$json.timestamp}}</p></body></html>",
+        "options": {}
+      },
+      "id": "email-patient-alert",
+      "name": "Email Patient Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1560, 320],
+      "credentials": {
+        "sendGrid": {
+          "id": "sendgrid-healthcare",
+          "name": "Healthcare SendGrid"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#alert-notifications",
+        "text": "🔔 **Patient Alert Sent**\\n\\nSlack message from #redis-alerts has been forwarded to patients:\\n\\n**Original Message:** {{$('Parse Slack Message Event').json.text}}\\n**Patients Notified:** {{$('Get Active Patients').json.length}}\\n**Timestamp:** {{$('Parse Slack Message Event').json.timestamp}}",
+        "attachments": [],
+        "blocks": []
+      },
+      "id": "slack-confirmation",
+      "name": "Slack Alert Confirmation",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1780, 320],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-healthcare",
+          "name": "Healthcare Slack Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "id": "schedule-redis-cleanup",
+      "name": "Schedule Redis Cleanup",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 600]
+    },
+    {
+      "parameters": {
+        "operation": "deleteByPattern",
+        "key": "slack_alert:*"
+      },
+      "id": "cleanup-old-alerts",
+      "name": "Cleanup Old Alerts",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [460, 600],
+      "credentials": {
+        "redis": {
+          "id": "redis-healthcare",
+          "name": "Healthcare Redis"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Slack Channel Message Handler": {
+      "main": [
+        [
+          {
+            "node": "Parse Slack Message Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Slack Message Event": {
+      "main": [
+        [
+          {
+            "node": "Check If Alert Worthy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Alert Worthy": {
+      "main": [
+        [
+          {
+            "node": "Store Alert in Redis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Active Patients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Patients": {
+      "main": [
+        [
+          {
+            "node": "Process Patient Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Patient Alerts": {
+      "main": [
+        [
+          {
+            "node": "Cache Patient Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cache Patient Alert": {
+      "main": [
+        [
+          {
+            "node": "Email Patient Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Patient Alert": {
+      "main": [
+        [
+          {
+            "node": "Slack Alert Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Redis Cleanup": {
+      "main": [
+        [
+          {
+            "node": "Cleanup Old Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1"
+}

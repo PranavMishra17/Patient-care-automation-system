@@ -1,0 +1,655 @@
+{
+  "name": "Healthcare Pipeline - Complete Integration",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "patient-intake",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Patient Intake Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "patient-intake"
+    },
+    {
+      "parameters": {
+        "functionCode": "// PHI Detection and Encryption Function\nconst crypto = require('crypto');\n\n// Define PHI patterns\nconst phiPatterns = {\n  ssn: /\\b\\d{3}-?\\d{2}-?\\d{4}\\b/g,\n  phone: /\\b\\d{3}-?\\d{3}-?\\d{4}\\b/g,\n  email: /\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b/g,\n  dob: /\\b\\d{1,2}\\/\\d{1,2}\\/\\d{4}\\b/g,\n  mrn: /\\bMRN[-:\\s]*\\d+\\b/gi\n};\n\nconst inputData = $json;\nconst encryptionKey = $env.PHI_ENCRYPTION_KEY;\n\n// Function to encrypt sensitive data\nfunction encryptPHI(data, key) {\n  const cipher = crypto.createCipher('aes-256-cbc', key);\n  let encrypted = cipher.update(data, 'utf8', 'hex');\n  encrypted += cipher.final('hex');\n  return encrypted;\n}\n\n// Detect and classify PHI\nconst phiDetected = {};\nconst cleanedData = {};\n\nfor (const [field, value] of Object.entries(inputData)) {\n  if (typeof value === 'string') {\n    let hasPHI = false;\n    \n    for (const [type, pattern] of Object.entries(phiPatterns)) {\n      if (pattern.test(value)) {\n        phiDetected[field] = type;\n        cleanedData[field] = encryptPHI(value, encryptionKey);\n        hasPHI = true;\n        break;\n      }\n    }\n    \n    // Encrypt common PHI fields regardless\n    if (['firstName', 'lastName', 'address', 'city'].includes(field)) {\n      cleanedData[field] = encryptPHI(value, encryptionKey);\n      phiDetected[field] = 'personal_info';\n    } else if (!hasPHI) {\n      cleanedData[field] = value;\n    }\n  } else {\n    cleanedData[field] = value;\n  }\n}\n\nreturn [{\n  json: {\n    patientId: crypto.randomUUID(),\n    originalData: cleanedData,\n    phiFields: Object.keys(phiDetected),\n    timestamp: new Date().toISOString(),\n    riskLevel: 'pending_assessment',\n    patientEmail: inputData.email // Keep unencrypted for lookups\n  }\n}];"
+      },
+      "id": "phi-encryption",
+      "name": "PHI Detection & Encryption",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.AZURE_OPENAI_ENDPOINT}}openai/deployments/{{$env.AZURE_OPENAI_DEPLOYMENT_NAME}}/chat/completions?api-version={{$env.AZURE_OPENAI_API_VERSION}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api-key",
+              "value": "={{$env.AZURE_OPENAI_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"model\": \"{{$env.AZURE_OPENAI_DEPLOYMENT_NAME}}\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a medical triage assistant. Analyze patient symptoms and demographics to determine appropriate specialist referral and urgency level. Respond with structured JSON only with these exact fields: specialist, urgency, recommendedTimeline, clinicalConsiderations.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Patient: Age {{$('Patient Intake Webhook').json.age}}, Gender {{$('Patient Intake Webhook').json.gender}}, Chief Complaint: {{$('Patient Intake Webhook').json.chiefComplaint}}, Symptoms: {{$('Patient Intake Webhook').json.symptoms}}, Medical History: {{$('Patient Intake Webhook').json.medicalHistory}}. Determine: 1) Most appropriate specialist (Cardiology/Endocrinology/Neurology/Internal Medicine/Psychiatry/Rheumatology/Gastroenterology/Pulmonology/Dermatology), 2) Urgency level (Low/Medium/High/Critical), 3) Recommended timeline for appointment, 4) Key clinical considerations.\"\n    }\n  ],\n  \"temperature\": 0.3,\n  \"max_tokens\": 500\n}",
+        "options": {}
+      },
+      "id": "azure-openai-analysis",
+      "name": "Azure OpenAI Medical Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM specialists WHERE specialty = '{{$json.choices[0].message.content.specialist}}' AND availability IN ('high', 'medium') ORDER BY availability DESC LIMIT 3;",
+        "additionalFields": {}
+      },
+      "id": "get-specialists",
+      "name": "Get Available Specialists",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [900, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-healthcare",
+          "name": "Healthcare PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Specialist Assignment Algorithm\nconst aiResponse = $('Azure OpenAI Medical Analysis').first().json;\nconst analysis = JSON.parse(aiResponse.choices[0].message.content);\nconst specialists = $json;\nconst patientData = $('Patient Intake Webhook').first().json;\nconst encryptedData = $('PHI Detection & Encryption').first().json;\n\n// Select first available specialist\nlet assignedSpecialist = specialists[0] || {\n  id: 'dr-davis',\n  name: 'Dr. Robert Davis',\n  specialty: 'Internal Medicine',\n  slack_id: 'U567890',\n  email: 'dr.davis@hospital.com',\n  availability: 'high'\n};\n\nconst caseId = `CASE-${Date.now()}`;\n\nreturn [{\n  json: {\n    ...patientData,\n    ...encryptedData,\n    aiAnalysis: analysis,\n    assignedSpecialist: assignedSpecialist,\n    availableSpecialists: specialists,\n    assignmentTimestamp: new Date().toISOString(),\n    caseId: caseId,\n    status: 'pending_specialist_response',\n    currentSpecialistIndex: 0\n  }\n}];"
+      },
+      "id": "specialist-assignment",
+      "name": "Specialist Assignment Logic",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "case:{{$json.caseId}}",
+        "value": "={{JSON.stringify($json)}}",
+        "ttl": 86400
+      },
+      "id": "cache-case-data",
+      "name": "Cache Case Data (Redis)",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [1340, 300],
+      "credentials": {
+        "redis": {
+          "id": "redis-healthcare",
+          "name": "Healthcare Redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#patient-alerts",
+        "text": "",
+        "attachments": [],
+        "blocks": [
+          {
+            "type": "header",
+            "text": {
+              "type": "plain_text",
+              "text": "🚨 New Patient Assignment - {{$json.aiAnalysis.urgency}} Priority"
+            }
+          },
+          {
+            "type": "section",
+            "fields": [
+              {
+                "type": "mrkdwn",
+                "text": "*Case ID:*\\n{{$json.caseId}}"
+              },
+              {
+                "type": "mrkdwn",
+                "text": "*Specialty:*\\n{{$json.aiAnalysis.specialist}}"
+              },
+              {
+                "type": "mrkdwn",
+                "text": "*Assigned to:*\\n<@{{$json.assignedSpecialist.slack_id}}> - {{$json.assignedSpecialist.name}}"
+              },
+              {
+                "type": "mrkdwn",
+                "text": "*Timeline:*\\n{{$json.aiAnalysis.recommendedTimeline}}"
+              }
+            ]
+          },
+          {
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": "*Chief Complaint:* {{$('Patient Intake Webhook').json.chiefComplaint}}\\n*Clinical Notes:* {{$json.aiAnalysis.clinicalConsiderations}}"
+            }
+          },
+          {
+            "type": "actions",
+            "elements": [
+              {
+                "type": "button",
+                "text": {
+                  "type": "plain_text",
+                  "text": "✅ Accept Case"
+                },
+                "style": "primary",
+                "value": "accept_{{$json.caseId}}"
+              },
+              {
+                "type": "button",
+                "text": {
+                  "type": "plain_text",
+                  "text": "❌ Decline Case"
+                },
+                "style": "danger",
+                "value": "decline_{{$json.caseId}}"
+              }
+            ]
+          }
+        ]
+      },
+      "id": "slack-specialist-alert",
+      "name": "Slack Specialist Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1560, 300],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-healthcare",
+          "name": "Healthcare Slack Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "slack-interaction",
+        "options": {}
+      },
+      "id": "slack-interaction-webhook",
+      "name": "Slack Interaction Handler",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 600],
+      "webhookId": "slack-interaction"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse Slack interaction payload\nconst payload = JSON.parse($json.payload);\nconst action = payload.actions[0];\nconst actionValue = action.value;\nconst userId = payload.user.id;\nconst userName = payload.user.name;\n\nconst [actionType, caseId] = actionValue.split('_');\n\nreturn [{\n  json: {\n    actionType: actionType,\n    caseId: caseId,\n    userId: userId,\n    userName: userName,\n    timestamp: new Date().toISOString(),\n    responseUrl: payload.response_url\n  }\n}];"
+      },
+      "id": "parse-slack-response",
+      "name": "Parse Slack Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 600]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.actionType}}",
+              "rightValue": "accept",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-acceptance",
+      "name": "Check If Accepted",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 600]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "case:{{$json.caseId}}"
+      },
+      "id": "get-case-data",
+      "name": "Get Case Data (Redis)",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [900, 520],
+      "credentials": {
+        "redis": {
+          "id": "redis-healthcare",
+          "name": "Healthcare Redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM patient_medical_history WHERE patient_email = '{{JSON.parse($json.value).patientEmail}}';",
+        "additionalFields": {}
+      },
+      "id": "get-medical-history",
+      "name": "Get Patient Medical History",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1120, 520],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-healthcare",
+          "name": "Healthcare PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{$env.AZURE_OPENAI_ENDPOINT}}openai/deployments/{{$env.AZURE_OPENAI_DEPLOYMENT_NAME}}/chat/completions?api-version={{$env.AZURE_OPENAI_API_VERSION}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api-key",
+              "value": "={{$env.AZURE_OPENAI_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"model\": \"{{$env.AZURE_OPENAI_DEPLOYMENT_NAME}}\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a clinical documentation assistant. Generate a comprehensive medical report for the specialist including patient history, current presentation, risk assessment, and recommended care plan. Use proper medical terminology and format as a professional medical document.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate a detailed medical consultation report for:\\n\\nCURRENT PRESENTATION:\\nChief Complaint: {{JSON.parse($('Get Case Data (Redis)').json.value).chiefComplaint}}\\nSymptoms: {{JSON.parse($('Get Case Data (Redis)').json.value).symptoms}}\\nUrgency: {{JSON.parse($('Get Case Data (Redis)').json.value).aiAnalysis.urgency}}\\n\\nMEDICAL HISTORY:\\nAllergies: {{$json.allergies}}\\nCurrent Medications: {{$json.medications}}\\nMedical Conditions: {{$json.medical_conditions}}\\nPrevious Procedures: {{$json.previous_procedures}}\\nLab Results: {{$json.lab_results}}\\nFamily History: {{$json.family_history}}\\n\\nSPECIALIST: {{JSON.parse($('Get Case Data (Redis)').json.value).assignedSpecialist.name}} - {{JSON.parse($('Get Case Data (Redis)').json.value).assignedSpecialist.specialty}}\\n\\nInclude: Assessment, Differential Diagnosis, Recommended Tests, Treatment Considerations, and Care Coordination Notes.\"\n    }\n  ],\n  \"temperature\": 0.2,\n  \"max_tokens\": 1500\n}",
+        "options": {}
+      },
+      "id": "generate-medical-report",
+      "name": "Generate Medical Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 520]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.SENDGRID_FROM_EMAIL}}",
+        "toEmail": "={{JSON.parse($('Get Case Data (Redis)').json.value).assignedSpecialist.email}}",
+        "subject": "Medical Consultation Report - Case {{JSON.parse($('Get Case Data (Redis)').json.value).caseId}}",
+        "text": "",
+        "html": "=<html><body><h2>Medical Consultation Report</h2><h3>Case ID: {{JSON.parse($('Get Case Data (Redis)').json.value).caseId}}</h3><h3>Patient Information</h3><p><strong>Chief Complaint:</strong> {{JSON.parse($('Get Case Data (Redis)').json.value).chiefComplaint}}</p><p><strong>Urgency Level:</strong> {{JSON.parse($('Get Case Data (Redis)').json.value).aiAnalysis.urgency}}</p><h3>Medical Report</h3><div style=\"border: 1px solid #ccc; padding: 15px; background: #f9f9f9;\">{{$json.choices[0].message.content}}</div><p><strong>Generated:</strong> {{new Date().toISOString()}}</p><p>Please review and provide consultation as appropriate.</p></body></html>",
+        "options": {}
+      },
+      "id": "email-specialist-report",
+      "name": "Email Specialist Report",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1560, 520],
+      "credentials": {
+        "sendGrid": {
+          "id": "sendgrid-healthcare",
+          "name": "Healthcare SendGrid"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.SENDGRID_FROM_EMAIL}}",
+        "toEmail": "={{JSON.parse($('Get Case Data (Redis)').json.value).patientEmail}}",
+        "subject": "Your Healthcare Appointment Confirmation - Case {{JSON.parse($('Get Case Data (Redis)').json.value).caseId}}",
+        "text": "",
+        "html": "=<html><body><h2>Healthcare Appointment Confirmation</h2><p>Dear {{JSON.parse($('Get Case Data (Redis)').json.value).firstName}} {{JSON.parse($('Get Case Data (Redis)').json.value).lastName}},</p><p>Your specialist appointment has been confirmed with:</p><ul><li><strong>Specialist:</strong> {{JSON.parse($('Get Case Data (Redis)').json.value).assignedSpecialist.name}}</li><li><strong>Specialty:</strong> {{JSON.parse($('Get Case Data (Redis)').json.value).assignedSpecialist.specialty}}</li><li><strong>Case Reference:</strong> {{JSON.parse($('Get Case Data (Redis)').json.value).caseId}}</li><li><strong>Priority Level:</strong> {{JSON.parse($('Get Case Data (Redis)').json.value).aiAnalysis.urgency}}</li></ul><p><strong>Next Steps:</strong></p><ul><li>You will receive a calendar invite shortly</li><li>Please prepare any recent test results</li><li>Bring a list of current medications</li><li>Arrive 15 minutes early for check-in</li></ul><p>If you have any questions, please contact our office.</p><p>Thank you,<br>Healthcare Team</p></body></html>",
+        "options": {}
+      },
+      "id": "email-patient-confirmation",
+      "name": "Email Patient Confirmation",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1780, 520],
+      "credentials": {
+        "sendGrid": {
+          "id": "sendgrid-healthcare",
+          "name": "Healthcare SendGrid"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromPhoneNumber": "={{$env.TWILIO_FROM_NUMBER}}",
+        "toPhoneNumber": "={{JSON.parse($('Get Case Data (Redis)').json.value).phoneNumber}}",
+        "message": "Healthcare Update: Your appointment with {{JSON.parse($('Get Case Data (Redis)').json.value).assignedSpecialist.name}} ({{JSON.parse($('Get Case Data (Redis)').json.value).assignedSpecialist.specialty}}) has been confirmed. Case ID: {{JSON.parse($('Get Case Data (Redis)').json.value).caseId}}. You will receive an email with details and calendar invite shortly."
+      },
+      "id": "sms-patient-notification",
+      "name": "SMS Patient Notification",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 2,
+      "position": [2000, 520],
+      "credentials": {
+        "twilioApi": {
+          "id": "twilio-healthcare",
+          "name": "Healthcare Twilio"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Handle case decline - find next specialist\nconst caseData = JSON.parse($('Get Case Data (Redis)').json.value);\nconst currentIndex = caseData.currentSpecialistIndex || 0;\nconst nextIndex = currentIndex + 1;\n\nif (nextIndex < caseData.availableSpecialists.length) {\n  // Assign to next specialist\n  const nextSpecialist = caseData.availableSpecialists[nextIndex];\n  \n  const updatedCase = {\n    ...caseData,\n    assignedSpecialist: nextSpecialist,\n    currentSpecialistIndex: nextIndex,\n    status: 'reassigned_to_next_specialist',\n    reassignmentTimestamp: new Date().toISOString()\n  };\n  \n  return [{ json: updatedCase }];\n} else {\n  // No more specialists available\n  const updatedCase = {\n    ...caseData,\n    status: 'no_specialists_available',\n    requiresManualIntervention: true,\n    escalationTimestamp: new Date().toISOString()\n  };\n  \n  return [{ json: updatedCase }];\n}"
+      },
+      "id": "handle-decline",
+      "name": "Handle Case Decline",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 680]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "case:{{$json.caseId}}",
+        "value": "={{JSON.stringify($json)}}",
+        "ttl": 86400
+      },
+      "id": "update-case-cache",
+      "name": "Update Case Cache",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [1120, 680],
+      "credentials": {
+        "redis": {
+          "id": "redis-healthcare",
+          "name": "Healthcare Redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.status}}",
+              "rightValue": "reassigned_to_next_specialist",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-reassignment",
+      "name": "Check If Reassigned",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1340, 680]
+    },
+    {
+      "parameters": {
+        "channel": "#patient-alerts",
+        "text": "🔄 **Case Reassigned**\\n\\nCase {{$json.caseId}} has been reassigned to {{$json.assignedSpecialist.name}} ({{$json.assignedSpecialist.specialty}}).\\n\\n<@{{$json.assignedSpecialist.slack_id}}> - Please review this case.",
+        "attachments": [],
+        "blocks": []
+      },
+      "id": "slack-reassignment-alert",
+      "name": "Slack Reassignment Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1560, 620],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-healthcare",
+          "name": "Healthcare Slack Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#critical-care",
+        "text": "🚨 **ESCALATION NEEDED**\\n\\nCase {{$json.caseId}} requires manual intervention - no available specialists responded.\\n\\nPlease assign manually or contact patient directly.",
+        "attachments": [],
+        "blocks": []
+      },
+      "id": "slack-escalation-alert",
+      "name": "Slack Escalation Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1560, 740],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-healthcare",
+          "name": "Healthcare Slack Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Patient Intake Webhook": {
+      "main": [
+        [
+          {
+            "node": "PHI Detection & Encryption",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PHI Detection & Encryption": {
+      "main": [
+        [
+          {
+            "node": "Azure OpenAI Medical Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Azure OpenAI Medical Analysis": {
+      "main": [
+        [
+          {
+            "node": "Get Available Specialists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Available Specialists": {
+      "main": [
+        [
+          {
+            "node": "Specialist Assignment Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Specialist Assignment Logic": {
+      "main": [
+        [
+          {
+            "node": "Cache Case Data (Redis)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cache Case Data (Redis)": {
+      "main": [
+        [
+          {
+            "node": "Slack Specialist Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Interaction Handler": {
+      "main": [
+        [
+          {
+            "node": "Parse Slack Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Slack Response": {
+      "main": [
+        [
+          {
+            "node": "Check If Accepted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Accepted": {
+      "main": [
+        [
+          {
+            "node": "Get Case Data (Redis)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Case Data (Redis)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Case Data (Redis)": {
+      "main": [
+        [
+          {
+            "node": "Get Patient Medical History",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Handle Case Decline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Patient Medical History": {
+      "main": [
+        [
+          {
+            "node": "Generate Medical Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Medical Report": {
+      "main": [
+        [
+          {
+            "node": "Email Specialist Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Specialist Report": {
+      "main": [
+        [
+          {
+            "node": "Email Patient Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Patient Confirmation": {
+      "main": [
+        [
+          {
+            "node": "SMS Patient Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Case Decline": {
+      "main": [
+        [
+          {
+            "node": "Update Case Cache",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Case Cache": {
+      "main": [
+        [
+          {
+            "node": "Check If Reassigned",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Reassigned": {
+      "main": [
+        [
+          {
+            "node": "Slack Reassignment Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack Escalation Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1"
+}

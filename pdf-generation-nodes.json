@@ -1,0 +1,64 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "functionCode": "// Convert medical report to PDF-ready HTML\nconst medicalReport = $('Generate Medical Report').first().json.choices[0].message.content;\nconst caseData = JSON.parse($('Get Case Data (Redis)').first().json.value);\nconst patientHistory = $('Get Patient Medical History').first().json;\n\n// Create professional HTML template for PDF\nconst htmlTemplate = `\n<!DOCTYPE html>\n<html>\n<head>\n    <meta charset=\"UTF-8\">\n    <style>\n        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }\n        .header { text-align: center; border-bottom: 3px solid #2c5aa0; padding-bottom: 20px; margin-bottom: 30px; }\n        .logo { font-size: 24px; font-weight: bold; color: #2c5aa0; }\n        .subtitle { color: #666; margin-top: 5px; }\n        .section { margin: 20px 0; }\n        .section-title { background: #f0f7ff; padding: 10px; border-left: 4px solid #2c5aa0; font-weight: bold; margin-bottom: 10px; }\n        .patient-info { background: #f9f9f9; padding: 15px; border-radius: 5px; }\n        .two-column { display: flex; gap: 20px; }\n        .column { flex: 1; }\n        .highlight { background: #fffacd; padding: 10px; border-radius: 5px; border-left: 4px solid #ffa500; }\n        .footer { margin-top: 40px; border-top: 1px solid #ccc; padding-top: 20px; text-align: center; color: #666; font-size: 12px; }\n        table { width: 100%; border-collapse: collapse; margin: 10px 0; }\n        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\n        th { background-color: #f2f2f2; }\n    </style>\n</head>\n<body>\n    <div class=\"header\">\n        <div class=\"logo\">HEALTHCARE PIPELINE</div>\n        <div class=\"subtitle\">Medical Consultation Report</div>\n    </div>\n    \n    <div class=\"section\">\n        <div class=\"section-title\">Case Information</div>\n        <div class=\"patient-info\">\n            <strong>Case ID:</strong> ${caseData.caseId}<br>\n            <strong>Date Generated:</strong> ${new Date().toLocaleDateString()}<br>\n            <strong>Assigned Specialist:</strong> ${caseData.assignedSpecialist.name}<br>\n            <strong>Specialty:</strong> ${caseData.assignedSpecialist.specialty}<br>\n            <strong>Urgency Level:</strong> <span style=\"color: ${caseData.aiAnalysis.urgency === 'Critical' ? 'red' : caseData.aiAnalysis.urgency === 'High' ? 'orange' : 'green'}\">${caseData.aiAnalysis.urgency}</span>\n        </div>\n    </div>\n    \n    <div class=\"section\">\n        <div class=\"section-title\">Current Presentation</div>\n        <p><strong>Chief Complaint:</strong> ${caseData.chiefComplaint}</p>\n        <p><strong>Symptoms:</strong> ${caseData.symptoms}</p>\n        <p><strong>Medical History:</strong> ${caseData.medicalHistory}</p>\n    </div>\n    \n    <div class=\"section\">\n        <div class=\"section-title\">Patient Medical History</div>\n        <div class=\"two-column\">\n            <div class=\"column\">\n                <h4>Allergies</h4>\n                <p>${Array.isArray(patientHistory.allergies) ? patientHistory.allergies.join(', ') : patientHistory.allergies || 'None documented'}</p>\n                \n                <h4>Current Medications</h4>\n                <p>${Array.isArray(patientHistory.medications) ? patientHistory.medications.join(', ') : patientHistory.medications || 'None documented'}</p>\n            </div>\n            <div class=\"column\">\n                <h4>Medical Conditions</h4>\n                <p>${Array.isArray(patientHistory.medical_conditions) ? patientHistory.medical_conditions.join(', ') : patientHistory.medical_conditions || 'None documented'}</p>\n                \n                <h4>Previous Procedures</h4>\n                <p>${Array.isArray(patientHistory.previous_procedures) ? patientHistory.previous_procedures.join(', ') : patientHistory.previous_procedures || 'None documented'}</p>\n            </div>\n        </div>\n        \n        <h4>Lab Results</h4>\n        <div class=\"highlight\">\n            ${typeof patientHistory.lab_results === 'object' ? \n              Object.entries(patientHistory.lab_results).map(([key, value]) => `<strong>${key}:</strong> ${value}`).join('<br>') : \n              patientHistory.lab_results || 'No recent lab results available'}\n        </div>\n        \n        <h4>Family History</h4>\n        <p>${patientHistory.family_history || 'Not documented'}</p>\n    </div>\n    \n    <div class=\"section\">\n        <div class=\"section-title\">AI-Generated Medical Analysis</div>\n        <div style=\"white-space: pre-wrap; background: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px solid #e9ecef;\">\n${medicalReport}\n        </div>\n    </div>\n    \n    <div class=\"section\">\n        <div class=\"section-title\">Clinical Recommendations</div>\n        <div class=\"highlight\">\n            <strong>Recommended Timeline:</strong> ${caseData.aiAnalysis.recommendedTimeline}<br>\n            <strong>Clinical Considerations:</strong> ${caseData.aiAnalysis.clinicalConsiderations}\n        </div>\n    </div>\n    \n    <div class=\"footer\">\n        <p>This report was generated automatically by the Healthcare Pipeline AI system.</p>\n        <p>Generated on: ${new Date().toISOString()}</p>\n        <p>CONFIDENTIAL MEDICAL INFORMATION - HIPAA Compliant</p>\n    </div>\n</body>\n</html>\n`;\n\nreturn [{\n  json: {\n    htmlContent: htmlTemplate,\n    caseId: caseData.caseId,\n    reportTitle: `Medical_Report_${caseData.caseId}_${new Date().toISOString().split('T')[0]}.pdf`\n  }\n}];"
+      },
+      "id": "format-pdf-html",
+      "name": "Format Report for PDF",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1780, 520]
+    },
+    {
+      "parameters": {
+        "url": "https://api.html-to-pdf.net/convert",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"html\": \"{{$json.htmlContent}}\",\n  \"format\": \"A4\",\n  \"margin\": {\n    \"top\": \"20mm\",\n    \"right\": \"20mm\",\n    \"bottom\": \"20mm\",\n    \"left\": \"20mm\"\n  },\n  \"printBackground\": true,\n  \"landscape\": false\n}",
+        "options": {}
+      },
+      "id": "convert-to-pdf",
+      "name": "Convert HTML to PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 520]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.SENDGRID_FROM_EMAIL}}",
+        "toEmail": "={{JSON.parse($('Get Case Data (Redis)').json.value).assignedSpecialist.email}}",
+        "subject": "Medical Consultation Report (PDF) - Case {{JSON.parse($('Get Case Data (Redis)').json.value).caseId}}",
+        "text": "Please find attached the comprehensive medical consultation report for the assigned case.",
+        "html": "=<html><body><h2>Medical Consultation Report</h2><p>Dear {{JSON.parse($('Get Case Data (Redis)').json.value).assignedSpecialist.name}},</p><p>Please find attached the comprehensive medical consultation report for:</p><ul><li><strong>Case ID:</strong> {{JSON.parse($('Get Case Data (Redis)').json.value).caseId}}</li><li><strong>Patient:</strong> {{JSON.parse($('Get Case Data (Redis)').json.value).firstName}} {{JSON.parse($('Get Case Data (Redis)').json.value).lastName}}</li><li><strong>Urgency:</strong> {{JSON.parse($('Get Case Data (Redis)').json.value).aiAnalysis.urgency}}</li></ul><p>The report includes comprehensive patient history, AI analysis, and clinical recommendations.</p><p>Best regards,<br>Healthcare Pipeline System</p></body></html>",
+        "attachments": [
+          {
+            "name": "={{$('Format Report for PDF').json.reportTitle}}",
+            "content": "={{$json.pdf_data}}",
+            "contentType": "application/pdf"
+          }
+        ]
+      },
+      "id": "email-pdf-report",
+      "name": "Email PDF Report to Specialist",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [2220, 520],
+      "credentials": {
+        "sendGrid": {
+          "id": "sendgrid-healthcare",
+          "name": "Healthcare SendGrid"
+        }
+      }
+    }
+  ]
+}
