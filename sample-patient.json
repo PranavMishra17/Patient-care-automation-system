@@ -1,0 +1,14 @@
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "age": 45,
+  "gender": "Male",
+  "phoneNumber": "555-0123",
+  "email": "john.doe@example.com",
+  "chiefComplaint": "Chest pain and shortness of breath",
+  "symptoms": "Severe chest pain, difficulty breathing, fatigue for the past 2 hours",
+  "medicalHistory": "Hypertension, diabetes type 2, family history of heart disease",
+  "address": "123 Main St",
+  "city": "Healthcare City",
+  "emergencyContact": "Jane Doe - 555-0124"
+}

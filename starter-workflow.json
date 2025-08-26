@@ -1,0 +1,155 @@
+{
+  "name": "Patient Intake - Basic Starter",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "patient-intake",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Patient Intake Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "patient-intake"
+    },
+    {
+      "parameters": {
+        "functionCode": "// PHI Detection and Encryption Function\nconst crypto = require('crypto');\n\n// Define PHI patterns\nconst phiPatterns = {\n  ssn: /\\b\\d{3}-?\\d{2}-?\\d{4}\\b/g,\n  phone: /\\b\\d{3}-?\\d{3}-?\\d{4}\\b/g,\n  email: /\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b/g,\n  dob: /\\b\\d{1,2}\\/\\d{1,2}\\/\\d{4}\\b/g,\n  mrn: /\\bMRN[-:\\s]*\\d+\\b/gi\n};\n\nconst inputData = $json;\nconst encryptionKey = $env.PHI_ENCRYPTION_KEY;\n\n// Function to encrypt sensitive data\nfunction encryptPHI(data, key) {\n  const cipher = crypto.createCipher('aes-256-cbc', key);\n  let encrypted = cipher.update(data, 'utf8', 'hex');\n  encrypted += cipher.final('hex');\n  return encrypted;\n}\n\n// Detect and classify PHI\nconst phiDetected = {};\nconst cleanedData = {};\n\nfor (const [field, value] of Object.entries(inputData)) {\n  if (typeof value === 'string') {\n    let hasPHI = false;\n    \n    for (const [type, pattern] of Object.entries(phiPatterns)) {\n      if (pattern.test(value)) {\n        phiDetected[field] = type;\n        cleanedData[field] = encryptPHI(value, encryptionKey);\n        hasPHI = true;\n        break;\n      }\n    }\n    \n    // Encrypt common PHI fields regardless\n    if (['firstName', 'lastName', 'address', 'city'].includes(field)) {\n      cleanedData[field] = encryptPHI(value, encryptionKey);\n      phiDetected[field] = 'personal_info';\n    } else if (!hasPHI) {\n      cleanedData[field] = value;\n    }\n  } else {\n    cleanedData[field] = value;\n  }\n}\n\nreturn [{\n  json: {\n    patientId: crypto.randomUUID(),\n    originalData: cleanedData,\n    phiFields: Object.keys(phiDetected),\n    timestamp: new Date().toISOString(),\n    riskLevel: 'pending_assessment'\n  }\n}];"
+      },
+      "id": "phi-encryption",
+      "name": "PHI Detection & Encryption",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.AZURE_OPENAI_ENDPOINT}}openai/deployments/{{$env.AZURE_OPENAI_DEPLOYMENT_NAME}}/chat/completions?api-version={{$env.AZURE_OPENAI_API_VERSION}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api-key",
+              "value": "={{$env.AZURE_OPENAI_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "={{$env.AZURE_OPENAI_DEPLOYMENT_NAME}}"
+            },
+            {
+              "name": "messages",
+              "value": "=[\n  {\n    \"role\": \"system\",\n    \"content\": \"You are a medical triage assistant. Analyze patient symptoms and demographics to determine appropriate specialist referral and urgency level. Respond with structured JSON only.\"\n  },\n  {\n    \"role\": \"user\", \n    \"content\": \"Patient: Age {{$('Patient Intake Webhook').json.age}}, Gender {{$('Patient Intake Webhook').json.gender}}, Chief Complaint: {{$('Patient Intake Webhook').json.chiefComplaint}}, Symptoms: {{$('Patient Intake Webhook').json.symptoms}}, Medical History: {{$('Patient Intake Webhook').json.medicalHistory}}. Determine: 1) Most appropriate specialist, 2) Urgency level (Low/Medium/High/Critical), 3) Recommended timeline for appointment, 4) Key clinical considerations.\"\n  }\n]"
+            },
+            {
+              "name": "temperature",
+              "value": "0.3"
+            },
+            {
+              "name": "max_tokens",
+              "value": "500"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "azure-openai-analysis",
+      "name": "Azure OpenAI Medical Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Specialist Assignment Algorithm\nconst analysis = JSON.parse($json.choices[0].message.content);\nconst patientData = $('Patient Intake Webhook').first().json;\n\n// Specialist availability matrix (demo data)\nconst specialists = {\n  cardiology: [\n    {id: 'dr-smith', name: 'Dr. Smith', slackId: 'U123456', availability: 'high'},\n    {id: 'dr-jones', name: 'Dr. Jones', slackId: 'U789012', availability: 'medium'}\n  ],\n  endocrinology: [\n    {id: 'dr-williams', name: 'Dr. Williams', slackId: 'U345678', availability: 'high'}\n  ],\n  neurology: [\n    {id: 'dr-brown', name: 'Dr. Brown', slackId: 'U901234', availability: 'low'}\n  ],\n  general: [\n    {id: 'dr-general', name: 'Dr. General', slackId: 'U000000', availability: 'high'}\n  ]\n};\n\n// Round-robin assignment within specialty\nconst specialty = analysis.specialist.toLowerCase();\nconst availableSpecialists = specialists[specialty] || specialists['general'];\n\n// Simple assignment based on availability and patient urgency\nlet assignedSpecialist;\nif (analysis.urgency === 'Critical' || analysis.urgency === 'High') {\n  assignedSpecialist = availableSpecialists.find(s => s.availability === 'high') || availableSpecialists[0];\n} else {\n  assignedSpecialist = availableSpecialists[Math.floor(Math.random() * availableSpecialists.length)];\n}\n\nreturn [{\n  json: {\n    ...patientData,\n    aiAnalysis: analysis,\n    assignedSpecialist: assignedSpecialist,\n    assignmentTimestamp: new Date().toISOString(),\n    caseId: `CASE-${Date.now()}`,\n    status: 'specialist_assigned'\n  }\n}];"
+      },
+      "id": "specialist-assignment",
+      "name": "Specialist Assignment",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Simple console output for demo\nconst data = $json;\n\nconsole.log('=== PATIENT CASE PROCESSED ===');\nconsole.log('Case ID:', data.caseId);\nconsole.log('Patient ID:', data.patientId);\nconsole.log('Assigned Specialist:', data.assignedSpecialist.name);\nconsole.log('Specialty:', data.aiAnalysis.specialist);\nconsole.log('Urgency:', data.aiAnalysis.urgency);\nconsole.log('Timeline:', data.aiAnalysis.recommendedTimeline);\nconsole.log('Status:', data.status);\nconsole.log('================================');\n\nreturn [{\n  json: {\n    success: true,\n    message: 'Patient intake processed successfully',\n    caseId: data.caseId,\n    status: data.status,\n    specialist: data.assignedSpecialist.name,\n    urgency: data.aiAnalysis.urgency\n  }\n}];"
+      },
+      "id": "output-results",
+      "name": "Output Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Patient Intake Webhook": {
+      "main": [
+        [
+          {
+            "node": "PHI Detection & Encryption",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PHI Detection & Encryption": {
+      "main": [
+        [
+          {
+            "node": "Azure OpenAI Medical Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Azure OpenAI Medical Analysis": {
+      "main": [
+        [
+          {
+            "node": "Specialist Assignment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Specialist Assignment": {
+      "main": [
+        [
+          {
+            "node": "Output Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1"
+}
