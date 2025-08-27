@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@custom-js/n8n-nodes-pdf-toolkit": "^1.12.0"
+  }
+}

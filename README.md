@@ -11,402 +11,257 @@
   [![HIPAA](https://img.shields.io/badge/HIPAA-Compliant-green.svg)](https://www.hhs.gov/hipaa/index.html)
   [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
   
-  **Automated patient intake, specialist assignment, and care coordination using n8n workflows**
+  **Intelligent healthcare automation with AI-powered triage, specialist assignment, and real-time care coordination**
   
-  [Features](#-features) • [Quick Start](#-quick-start) • [Architecture](#-architecture) • [API Reference](#-api-reference) • [Contributing](#-contributing)
+  [Features](#-features) • [Quick Start](#-quick-start) • [Architecture](#-architecture) • [Testing](#-testing) • [Security](#-security)
 </div>
 
 ---
 
 ## 🎯 Overview
 
-This project implements a **HIPAA-compliant healthcare automation system** that streamlines patient care coordination through intelligent workflows. Built with n8n, it automates the entire patient journey from initial intake to specialist assignment, medical report generation, and appointment scheduling.
+This system implements a **complete healthcare automation pipeline** that transforms patient care coordination through intelligent workflows. From initial symptom assessment to specialist assignment, medical report generation, and appointment scheduling - everything is automated while maintaining HIPAA compliance and clinical accuracy.
 
-### ✨ Key Capabilities
+## ✨ Core Features
 
-- **🤖 AI-Powered Triage**: Azure OpenAI analyzes patient symptoms and assigns appropriate specialists
-- **🔐 PHI Encryption**: Automatic detection and encryption of Protected Health Information
-- **👨‍⚕️ Smart Specialist Assignment**: Intelligent routing based on availability and expertise
-- **📱 Multi-Channel Notifications**: Slack, email, and SMS alerts for care teams
-- **📄 Automated Reports**: LLM-generated medical reports converted to PDF
-- **📅 Appointment Scheduling**: Calendly integration for seamless booking
-- **🚨 Real-time Monitoring**: Redis-based alert system for critical communications
+### 🤖 **AI-Powered Medical Intelligence**
+- **Smart Triage**: Azure OpenAI GPT-4 analyzes symptoms and assigns urgency levels (1-10 scale)
+- **Specialist Matching**: Intelligent routing based on medical conditions, availability, and expertise
+- **Medical Report Generation**: Comprehensive clinical assessments with differential diagnoses
+- **Risk Stratification**: Automatic identification of high-risk patients requiring immediate attention
 
-## 🏗️ Architecture
+### 🔐 **HIPAA-Compliant Security**
+- **PHI Encryption**: AES-256 encryption for Protected Health Information with configurable keys
+- **Selective Data Masking**: Automatic detection and encryption of sensitive patient identifiers
+- **Audit Trail**: Complete logging of all data access, modifications, and workflow executions
+- **Secure Communications**: End-to-end encryption for all patient data transmissions
+
+### 💬 **Multi-Channel Communication**
+- **Slack Integration**: Real-time specialist notifications with interactive accept/decline buttons
+- **Email Automation**: SendGrid-powered professional medical reports and appointment confirmations  
+- **Redis Alerts**: High-speed alert system for critical patient conditions
+- **Calendly Integration**: Automated appointment scheduling with specialist availability
+
+### 📊 **Data & Analytics**
+- **PostgreSQL Database**: Structured storage for patient history, specialist profiles, and case tracking
+- **Redis Caching**: Fast retrieval of active cases and real-time alert management
+- **Case Management**: Comprehensive tracking from intake to resolution with reassignment capability
+- **Medical History Integration**: Full patient context including medications, allergies, and procedures
+
+## 🏗️ System Architecture
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Patient Form  │───▶│   n8n Workflow  │───▶│  Azure OpenAI   │
-│   (Webhook)     │    │   Engine        │    │   Analysis      │
+│   Patient       │───▶│   n8n Workflow  │───▶│  Azure OpenAI   │
+│   Intake        │    │   Orchestration │    │   GPT-4 Analysis│
+│   (Webhooks)    │    │                 │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │
                                 ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   PostgreSQL    │◀───│   Specialist    │───▶│   Slack Bot     │
-│   Database      │    │   Assignment    │    │   Notifications │
+│   PostgreSQL    │◀───│   PHI Detection │───▶│   Slack Bot     │
+│   Patient DB    │    │   & Encryption  │    │   Notifications │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │
                                 ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Redis Cache   │◀───│   Medical       │───▶│   SendGrid      │
-│   & Alerts      │    │   Report Gen    │    │   Email         │
+│   Redis Cache   │◀───│   Specialist    │───▶│   SendGrid      │
+│   & Alerts      │    │   Assignment    │    │   Email Reports │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │
                                 ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Calendly      │◀───│   PDF           │───▶│   Twilio SMS    │
-│   Scheduling    │    │   Generation    │    │   Notifications │
+│   Calendly      │◀───│   Medical       │───▶│   PDF           │
+│   Scheduling    │    │   Report Gen    │    │   Generation    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+## 🔄 Complete Workflow Process
+
+1. **Patient Intake** → Webhook receives patient symptoms and medical history
+2. **PHI Detection** → Automatic identification and encryption of sensitive data
+3. **AI Analysis** → GPT-4 performs medical triage and generates differential diagnoses
+4. **Specialist Assignment** → Intelligent routing to available specialists by specialty
+5. **Slack Notification** → Real-time alerts to assigned specialists with case details
+6. **Interactive Response** → Specialists accept/decline cases via Slack buttons
+7. **Case Reassignment** → Automatic routing to next available specialist if declined
+8. **Medical Report** → Comprehensive clinical assessment generation with patient history
+9. **Email Delivery** → Professional medical reports sent to specialists
+10. **Appointment Scheduling** → Calendly integration for patient appointment booking
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Docker Desktop (Windows/Mac/Linux)
+- Azure OpenAI API access with GPT-4 deployment
+- Slack workspace with admin permissions
+- SendGrid API key for email automation
+
+### 1. Clone & Setup
+```bash
+git clone https://github.com/yourusername/Patient-care-automation-system.git
+cd Patient-care-automation-system
+cp .env.example .env
+```
+
+### 2. Configure Environment Variables
+```bash
+# Azure OpenAI Configuration
+AZURE_OPENAI_API_KEY=your_api_key_here
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o-deployment-name
+
+# PHI Encryption (32-character hex key)
+PHI_ENCRYPTION_KEY=your_32_character_encryption_key
+
+# SendGrid Email Service
+SENDGRID_API_KEY=your_sendgrid_api_key
+
+# Slack Integration
+SLACK_BOT_TOKEN=xoxb-your-slack-bot-token
+```
+
+### 3. Start Services
+```bash
+docker compose up -d
+```
+
+### 4. Access & Configure
+- **n8n Interface**: http://localhost:5678
+- **Import workflows** from provided JSON files
+- **Configure credentials** for each service
+- **Activate workflows** to start processing
+
+## 🧪 Testing System
+
+### Automated Test Scripts
+```bash
+# Test patient intake workflow
+./WEBHOOK1_PATIENT_INTAKE.bat
+
+# Test specialist interaction (accept/decline)
+./WEBHOOK2_SLACK_INTERACTION.bat
+
+# Test Calendly appointment scheduling
+./WEBHOOK3_SEND_CALENDLY_INVITE.bat
+```
+
+### Manual Testing via API
+```bash
+# Patient intake with chest pain symptoms
+curl -X POST http://localhost:5678/webhook-test/patient-intake \
+  -H "Content-Type: application/json" \
+  -d '{
+    "firstName": "John",
+    "lastName": "Doe", 
+    "age": 55,
+    "gender": "Male",
+    "chiefComplaint": "Chest pain and shortness of breath",
+    "symptoms": "Severe chest pain, difficulty breathing, fatigue",
+    "medicalHistory": "Hypertension, diabetes type 2"
+  }'
 ```
 
 ## 📁 Project Structure
 
 ```
 Patient-care-automation-system/
-├── 📄 README.md                           # This file
+├── 📄 README.md                           # System documentation
 ├── 🐳 docker-compose.yml                  # Docker services configuration
 ├── 🔐 .env                                # Environment variables (create locally)
-├── 🗄️ init.sql                           # PostgreSQL initialization script
 ├── 🗄️ synthetic-patient-database.sql     # Sample patient and specialist data
-├── 🔄 healthcare-complete-workflow.json   # Main n8n workflow
-├── 🔄 redis-slack-alert-workflow.json    # Redis alert monitoring workflow
-├── 📄 pdf-generation-nodes.json          # PDF generation enhancement nodes
+├── 🔄 healthcare-workflows/               # n8n workflow JSON files
+├── 🧪 WEBHOOK1_PATIENT_INTAKE.bat        # Patient intake testing
+├── 🧪 WEBHOOK2_SLACK_INTERACTION.bat     # Specialist interaction testing  
+├── 🧪 WEBHOOK3_SEND_CALENDLY_INVITE.bat  # Appointment scheduling testing
 ├── 📋 SETUP.md                           # Detailed setup instructions
-├── 📋 COMPLETE-INTEGRATION-SETUP.md      # Complete integration guide
-├── 📋 INTEGRATION-GUIDE.md               # Workflow integration guide
-├── 📋 DEPLOYMENT.md                      # Deployment and operations guide
-├── 🛠️ fix-azure-credentials.bat          # Azure credentials fix script
-├── 🛠️ fix-azure-credentials.ps1          # PowerShell version
-├── 🧪 test-healthcare-system.bat         # System testing script
-├── 🧪 test-healthcare-system.ps1         # PowerShell testing script
-├── 📁 .gitignore                         # Git ignore patterns
 └── 📄 LICENSE                            # MIT License
 ```
 
-## 🚀 Quick Start
-
-### Prerequisites
-
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/Mac/Linux)
-- [Git](https://git-scm.com/)
-- Azure OpenAI API access
-- Slack workspace with admin permissions
-- SendGrid API key
-- Twilio account and phone number
-
-### 1. Clone and Setup
-
-```bash
-git clone https://github.com/yourusername/Patient-care-automation-system.git
-cd Patient-care-automation-system
-```
-
-### 2. Configure Environment
-
-```bash
-# Copy environment template
-cp .env.example .env
-
-# Edit with your API keys
-nano .env  # or use your preferred editor
-```
-
-**Required Environment Variables:**
-```bash
-# Azure OpenAI
-AZURE_OPENAI_API_KEY=your_key_here
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_DEPLOYMENT_NAME=your_deployment_name
-AZURE_OPENAI_API_VERSION=2024-02-15-preview
-
-# PHI Encryption
-PHI_ENCRYPTION_KEY=your_32_char_hex_key
-
-# SendGrid
-SENDGRID_API_KEY=your_sendgrid_key
-SENDGRID_FROM_EMAIL=noreply@yourdomain.com
-
-# Twilio
-TWILIO_ACCOUNT_SID=your_twilio_sid
-TWILIO_AUTH_TOKEN=your_twilio_token
-TWILIO_FROM_NUMBER=+1234567890
-
-# Slack
-SLACK_BOT_TOKEN=your_slack_bot_token
-SLACK_SIGNING_SECRET=your_slack_signing_secret
-```
-
-### 3. Start Services
-
-```bash
-# Start all services
-docker compose up -d
-
-# Verify services are running
-docker compose ps
-```
-
-### 4. Access n8n
-
-- **URL**: http://localhost:5678
-- **Create admin account** on first visit
-- **Import workflows** from JSON files
-
-### 5. Test System
-
-```bash
-# Run test script
-./test-healthcare-system.ps1
-
-# Or manually test webhooks
-curl -X POST http://localhost:5678/webhook-test/patient-intake \
-  -H "Content-Type: application/json" \
-  -d '{"firstName": "John", "lastName": "Doe", "age": 55}'
-```
-
-## 🔧 Configuration
-
-### Database Setup
-
-```bash
-# Load synthetic data
-docker cp synthetic-patient-database.sql patient-care-automation-system-postgres-1:/tmp/
-docker compose exec postgres psql -U n8n -d n8n_healthcare -f /tmp/synthetic-patient-database.sql
-```
-
-### n8n Credentials
-
-Create these credentials in n8n:
-
-| Service | Type | Configuration |
-|---------|------|---------------|
-| **Healthcare PostgreSQL** | PostgreSQL | Host: `postgres`, DB: `n8n_healthcare`, User: `n8n` |
-| **Healthcare Redis** | Redis | Host: `redis`, Port: `6379` |
-| **Healthcare Slack Bot** | Slack | OAuth Token from Slack app |
-| **Healthcare SendGrid** | Send Email | SMTP: `smtp.sendgrid.net:587` |
-| **Healthcare Twilio** | Twilio | Account SID + Auth Token |
-
-### Slack App Configuration
-
-1. **Create Slack app** from `slack-app-manifest.json`
-2. **Install to workspace** with required permissions
-3. **Configure webhook URLs** in Slack app settings
-4. **Add bot to channels**: `#patient-alerts`, `#redis-alerts`
-
-## 📊 API Reference
-
-### Webhook Endpoints
-
-| Endpoint | Method | Description | Payload |
-|----------|--------|-------------|---------|
-| `/webhook/patient-intake` | POST | Patient registration and triage | Patient data JSON |
-| `/webhook/slack-interaction` | POST | Handle Slack button clicks | Slack payload |
-| `/webhook/redis-channel-alert` | POST | Process Redis alerts | Alert data JSON |
-
-### Patient Intake Payload
-
-```json
-{
-  "firstName": "John",
-  "lastName": "Doe",
-  "age": 55,
-  "gender": "Male",
-  "phoneNumber": "+15551234567",
-  "email": "john.doe@email.com",
-  "chiefComplaint": "Chest pain and shortness of breath",
-  "symptoms": "Severe chest pain, difficulty breathing, fatigue",
-  "medicalHistory": "Hypertension, diabetes type 2"
-}
-```
-
-### Response Format
-
-```json
-{
-  "success": true,
-  "caseId": "CASE-1234567890",
-  "assignedSpecialist": "Dr. Emily Smith",
-  "specialty": "Cardiology",
-  "estimatedWaitTime": "2-4 hours"
-}
-```
-
-## 🧪 Testing
-
-### Automated Testing
-
-```bash
-# Run comprehensive tests
-./test-healthcare-system.ps1
-
-# Test individual webhooks
-./test-healthcare-system.bat
-```
-
-### Manual Testing
-
-1. **Patient Intake**: Send POST to `/webhook/patient-intake`
-2. **Slack Integration**: Click Accept/Decline buttons in Slack
-3. **Redis Alerts**: Post message in `#redis-alerts` channel
-4. **Email/SMS**: Verify notifications are sent
-
-### Test Data
-
-The system includes **10 synthetic patients** and **10 specialists** for testing:
-
-- **Patients**: Various medical conditions and histories
-- **Specialists**: Different specialties with availability tracking
-- **Medical Data**: Realistic symptoms, medications, and diagnoses
-
-## 🔐 Security & Compliance
-
-### HIPAA Compliance Features
-
-- **PHI Encryption**: AES-256 encryption for sensitive data
-- **Audit Logging**: Complete trail of all data access and changes
-- **Access Controls**: Role-based permissions and authentication
-- **Data Minimization**: Only necessary PHI is collected and stored
-- **Secure Communication**: All API calls use proper authentication
-
-### Security Measures
-
-- **Environment Variables**: Sensitive data stored in `.env` (not in code)
-- **Docker Isolation**: Services run in isolated containers
-- **Network Security**: Internal communication between containers only
-- **SSL/TLS**: Encrypted connections for external APIs
-- **Regular Updates**: Keep dependencies and base images updated
-
-## 🚨 Troubleshooting
-
-### Common Issues
-
-| Issue | Solution |
-|-------|----------|
-| **Azure OpenAI [undefined]** | Run `./fix-azure-credentials.ps1` |
-| **Database Connection Failed** | Check `docker compose ps` and restart services |
-| **Webhook 404 Errors** | Ensure workflows are imported and activated |
-| **Slack Integration Issues** | Verify bot permissions and webhook URLs |
-| **PDF Generation Fails** | Check HTML-to-PDF service availability |
-
-### Debug Commands
-
-```bash
-# Check service status
-docker compose ps
-
-# View service logs
-docker compose logs n8n
-docker compose logs postgres
-docker compose logs redis
-
-# Test database connection
-docker compose exec postgres psql -U n8n -d n8n_healthcare -c "SELECT 1;"
-
-# Check Redis
-docker compose exec redis redis-cli -a your_password ping
-```
-
-## 📈 Monitoring & Operations
-
-### Health Checks
-
-```bash
-# Service status
-docker compose ps
-
-# Database queries
-docker compose exec postgres psql -U n8n -d n8n_healthcare -c "SELECT COUNT(*) FROM patients;"
-
-# Redis monitoring
-docker compose exec redis redis-cli -a your_password KEYS "*"
-```
-
-### Performance Metrics
-
-- **Response Time**: Webhook processing latency
-- **Throughput**: Patients processed per hour
-- **Error Rate**: Failed workflow executions
-- **Resource Usage**: CPU, memory, and storage
-
-### Log Management
-
-- **n8n Logs**: Workflow execution and errors
-- **Database Logs**: Query performance and errors
-- **Redis Logs**: Cache operations and memory usage
-- **Application Logs**: Custom business logic logging
-
-## 🚀 Deployment
-
-### Production Considerations
-
-1. **Environment**: Use production-grade hosting (AWS, Azure, GCP)
-2. **Database**: Managed PostgreSQL service with backups
-3. **Redis**: Managed Redis service with persistence
-4. **SSL**: Configure proper SSL certificates
-5. **Monitoring**: Set up application performance monitoring
-6. **Backups**: Regular database and configuration backups
-
-### Scaling
-
-- **Horizontal Scaling**: Multiple n8n instances behind load balancer
-- **Database Scaling**: Read replicas for heavy queries
-- **Redis Clustering**: Redis cluster for high availability
-- **Container Orchestration**: Kubernetes for production deployments
+## 🔐 Security & HIPAA Compliance
+
+### Built-in Security Features
+- **PHI Encryption**: Automatic AES-256 encryption for patient names, contact info, and identifiers
+- **Data Minimization**: Only necessary medical information is processed and stored
+- **Access Controls**: Role-based permissions and secure API authentication
+- **Audit Logging**: Complete trail of all patient data access and modifications
+- **Secure Storage**: Encrypted Redis cache and PostgreSQL database with access controls
+
+### HIPAA Compliance Measures
+- **Administrative Safeguards**: Proper access management and staff training protocols
+- **Physical Safeguards**: Docker container isolation and secure hosting requirements
+- **Technical Safeguards**: Encryption, audit logs, and secure transmission protocols
+- **Risk Assessment**: Regular security evaluations and vulnerability assessments
+
+### Privacy Protection
+- **De-identification**: Automatic removal of direct patient identifiers where possible
+- **Minimum Necessary**: Only essential PHI shared with authorized healthcare providers
+- **Business Associate Agreements**: Proper contracts with third-party service providers
+- **Patient Rights**: Support for access, amendment, and deletion requests
+
+## 🚨 Advanced Features & Add-ons
+
+### 📊 **Analytics & Reporting**
+- **Performance Metrics**: Response times, throughput, and error rates
+- **Clinical Insights**: Pattern recognition in patient symptoms and outcomes
+- **Resource Utilization**: Specialist workload and availability tracking
+- **Quality Metrics**: Patient satisfaction and care coordination efficiency
+
+### 🔄 **Workflow Extensions**
+- **Multi-language Support**: Patient intake in multiple languages with AI translation
+- **Telemedicine Integration**: Video consultation scheduling and management
+- **Lab Results Integration**: Automatic processing of diagnostic test results
+- **Insurance Verification**: Automated benefits checking and prior authorization
+
+### 🤖 **AI Enhancements**
+- **Predictive Analytics**: Early warning systems for patient deterioration
+- **Clinical Decision Support**: Evidence-based treatment recommendations
+- **Drug Interaction Checking**: Automatic medication safety screening
+- **Symptom Progression Tracking**: Longitudinal patient monitoring
+
+### 📱 **Mobile Integration**
+- **Patient Mobile App**: Direct symptom reporting and appointment management
+- **Provider Mobile Dashboard**: Real-time case notifications and quick responses
+- **WhatsApp/SMS Integration**: Multi-channel patient communication
+- **Voice Recognition**: Hands-free data entry for healthcare providers
+
+## 🎯 Deployment Options
+
+### Development Environment
+- **Local Docker**: Complete system on single machine for testing
+- **Ngrok Tunneling**: External webhook testing with public URLs
+- **Sample Data**: Synthetic patient and specialist database for development
+
+### Production Environment  
+- **Cloud Deployment**: AWS, Azure, or GCP with managed databases
+- **High Availability**: Multi-region deployment with failover capabilities
+- **Auto-scaling**: Dynamic resource allocation based on patient volume
+- **Backup & Recovery**: Automated data backups with point-in-time recovery
 
 ## 🤝 Contributing
 
-### Development Setup
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for:
+- **Development Setup**: Local environment configuration
+- **Code Standards**: Formatting, testing, and documentation requirements
+- **Security Guidelines**: HIPAA compliance and security best practices
+- **Pull Request Process**: Review and approval workflow
 
-1. **Fork the repository**
-2. **Create feature branch**: `git checkout -b feature/amazing-feature`
-3. **Make changes** and test thoroughly
-4. **Commit changes**: `git commit -m 'Add amazing feature'`
-5. **Push to branch**: `git push origin feature/amazing-feature`
-6. **Open Pull Request**
+## 📞 Support & Documentation
 
-### Code Standards
-
-- **Formatting**: Use consistent indentation and naming
-- **Documentation**: Update README and code comments
-- **Testing**: Include tests for new features
-- **Security**: Follow HIPAA compliance guidelines
-
-### Testing Guidelines
-
-- **Unit Tests**: Test individual workflow nodes
-- **Integration Tests**: Test complete workflow execution
-- **Security Tests**: Verify PHI encryption and access controls
-- **Performance Tests**: Ensure acceptable response times
+- **Setup Guide**: [SETUP.md](SETUP.md) - Detailed installation instructions
+- **API Documentation**: [API.md](API.md) - Complete webhook and API reference
+- **Troubleshooting**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common issues and solutions
+- **GitHub Issues**: Report bugs and request features
+- **Discussion Forum**: Ask questions and share improvements
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
-
-- **n8n Team** for the amazing workflow automation platform
-- **Azure OpenAI** for intelligent medical analysis capabilities
-- **Slack** for team communication and bot integration
-- **Open Source Community** for various tools and libraries used
-
-## 📞 Support
-
-### Getting Help
-
-- **Documentation**: Check the guides in this repository
-- **Issues**: Report bugs via GitHub Issues
-- **Discussions**: Use GitHub Discussions for questions
-- **Community**: Join n8n community forums
-
-### Contact
-
-- **Project Maintainer**: [Your Name](mailto:your.email@example.com)
-- **GitHub Issues**: [Create Issue](https://github.com/yourusername/Patient-care-automation-system/issues)
-- **Documentation**: [Wiki](https://github.com/yourusername/Patient-care-automation-system/wiki)
-
 ---
 
 <div align="center">
-  <p>Made with ❤️ for better healthcare automation</p>
-  <p>Built with <a href="https://n8n.io">n8n</a> • <a href="https://www.docker.com">Docker</a> • <a href="https://azure.microsoft.com/en-us/services/openai">Azure OpenAI</a></p>
+  <p><strong>🏥 Transforming Healthcare Through Intelligent Automation</strong></p>
+  <p>Built with <a href="https://n8n.io">n8n</a> • <a href="https://azure.microsoft.com/en-us/services/openai">Azure OpenAI</a> • <a href="https://www.docker.com">Docker</a></p>
+  <p><em>HIPAA-compliant • Enterprise-ready • Open Source</em></p>
 </div>

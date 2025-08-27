@@ -1,0 +1,845 @@
+{
+  "name": "Healthcare Complete Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "patient-intake",
+        "options": {}
+      },
+      "id": "ad6c7f5d-6f91-4974-a4a0-1fec0f076c0c",
+      "name": "Patient Intake Webhook1",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        1520
+      ],
+      "webhookId": "patient-intake"
+    },
+    {
+      "parameters": {
+        "functionCode": "  // PHI Detection with Hardcoded Patient Data Structure\n  const inputData = $json.body;\n\n  // Hardcode PHI fields based on patient intake webhook structure\n  const phiClassification = {\n    firstName: 'personal_identifier',\n    lastName: 'personal_identifier',\n    phoneNumber: 'contact_info',\n    email: 'contact_info',\n    age: 'demographic',\n    gender: 'demographic',\n    chiefComplaint: 'medical_info',\n    symptoms: 'medical_info',\n    medicalHistory: 'medical_info'\n  };\n\n  // Simple encryption for PHI fields\n  function encryptPHI(data, key = 'healthcare-phi-key') {\n    let hash = 0;\n    const str = data.toString() + key;\n    for (let i = 0; i < str.length; i++) {\n      const char = str.charCodeAt(i);\n      hash = ((hash << 5) - hash) + char;\n      hash = hash & hash;\n    }\n    return `ENC_${Math.abs(hash).toString(36).toUpperCase()}`;\n  }\n\n  // Generate patient ID\n  function generatePatientId() {\n    const timestamp = Date.now().toString(36);\n    const random = Math.random().toString(36).substr(2, 5);\n    return `PAT_${timestamp}_${random}`.toUpperCase();\n  }\n\n  // Process the patient data\n  const patientId = generatePatientId();\n  const processedData = {};\n  const phiFields = [];\n  const encryptedFields = {};\n\n  // Process each field from the webhook\n  for (const [field, value] of Object.entries(inputData)) {\n    if (phiClassification[field]) {\n      phiFields.push(field);\n\n      // Encrypt sensitive personal identifiers\n      if (['firstName', 'lastName', 'phoneNumber', 'email'].includes(field)) {\n        processedData[field] = encryptPHI(value);\n        encryptedFields[field] = value; // Store original for lookup\n      } else {\n        processedData[field] = value; // Keep medical info unencrypted for analysis\n      }\n    } else {\n      processedData[field] = value;\n    }\n  }\n\n  // Create structured output\n  const output = {\n    patientId: patientId,\n    timestamp: new Date().toISOString(),\n    originalData: processedData,\n    phiFields: phiFields,\n    phiClassification: phiClassification,\n    riskLevel: 'medium', // Based on chest pain complaint\n    urgencyScore: inputData.chiefComplaint?.toLowerCase().includes('chest pain') ? 8 : 5,\n    patientEmail: inputData.email, // Keep for notifications\n    encryptedLookup: encryptedFields,\n    demographics: {\n      age: inputData.age,\n      gender: inputData.gender\n    },\n    clinicalData: {\n      chiefComplaint: inputData.chiefComplaint,\n      symptoms: inputData.symptoms,\n      medicalHistory: inputData.medicalHistory\n    }\n  };\n\n  return [output];"
+      },
+      "id": "4a145108-2ac2-4189-abb1-7e20aada41c7",
+      "name": "PHI Detection & Encryption1",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1744,
+        1520
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "  SELECT * FROM specialists\n  WHERE specialty = '{{ $json.recommendedSpecialist }}'\n    AND availability IN ('high', 'medium')\n  ORDER BY availability DESC\n  LIMIT 3;",
+        "options": {}
+      },
+      "id": "eac12952-dad4-4e84-a0bb-1bd9cb0be4c9",
+      "name": "Get Available Specialists1",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2576,
+        1488
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "FVTpgk0c7vXSPB73",
+          "name": "Postgres account 2"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "functionCode": "  // Specialist Assignment Algorithm\n  // Get data from previous nodes using correct references\n  const specialists = $json; // Current node input (from PostgreSQL)\n  const llmAnalysis = $('Basic LLM Chain').first().json; // Your LLM node\n  const patientData = $('Patient Intake Webhook1').first().json; // Your webhook node  \n  const encryptedData = $('Code').first().json; // Your PHI processing node\n\n  // Parse the LLM response (it's in text format with JSON inside)\n  let analysis;\n  try {\n    const cleanJson = llmAnalysis.text.replace(/```json\\n?/g, '').replace(/```/g, '').trim();\n    analysis = JSON.parse(cleanJson);\n  } catch (error) {\n    analysis = {\n      urgencyLevel: 8,\n      disposition: 'admit for observation',\n      error: 'Failed to parse LLM response'\n    };\n  }\n\n  // Select first available specialist (highest availability first)\n  let assignedSpecialist = specialists[0] || {\n    id: 'dr-davis',\n    name: 'Dr. Robert Davis',\n    specialty: 'Internal Medicine',\n    slack_id: 'U567890',\n    email: 'dr.davis@hospital.com',\n    availability: 'high'\n  };\n\n  const caseId = `CASE-${Date.now()}`;\n\n  return [{\n    ...patientData.body, // Patient intake data\n    ...encryptedData, // PHI processed data\n    aiAnalysis: analysis,\n    assignedSpecialist: assignedSpecialist,\n    availableSpecialists: specialists,\n    assignmentTimestamp: new Date().toISOString(),\n    caseId: caseId,\n    status: 'pending_specialist_response',\n    currentSpecialistIndex: 0\n  }];"
+      },
+      "id": "629e00eb-e82e-4c81-b132-4fbf974fe38c",
+      "name": "Specialist Assignment Logic1",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2784,
+        1488
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "case:{{$json.caseId}}",
+        "value": "={{JSON.stringify($json)}}"
+      },
+      "id": "632f45c9-1b9e-4139-8360-bf5fd2d89646",
+      "name": "Cache Case Data (Redis)1",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        3008,
+        1488
+      ],
+      "credentials": {
+        "redis": {
+          "id": "gt4SkNLxW2kJ81uI",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#alert",
+          "mode": "name"
+        },
+        "messageType": "block",
+        "blocksUi": "=  {\n    \"blocks\": [\n      {\n        \"type\": \"header\",\n        \"text\": {\n          \"type\": \"plain_text\",\n          \"text\": \"URGENT MEDICAL CASE\"\n        }\n      },\n      {\n        \"type\": \"section\",\n        \"fields\": [\n          {\n            \"type\": \"mrkdwn\",\n            \"text\": \"*Case ID:*\\n{{ $json.caseId }}\"\n          },\n          {\n            \"type\": \"mrkdwn\",\n            \"text\": \"*Patient:*\\n{{ $json.firstName }} {{ $json.lastName }}\"\n          }\n        ]\n      },\n      {\n        \"type\": \"section\",\n        \"text\": {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*URGENCY LEVEL:* {{ $json.urgencyLevel }}/10\\n*Chief Complaint:* {{ $json.chiefComplaint }}\"\n        }\n      },\n      {\n        \"type\": \"divider\"\n      },\n      {\n        \"type\": \"section\",\n        \"text\": {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Assigned Specialist:* {{ $json.assignedSpecialist.name }}\\n*Contact:* {{ $json.assignedSpecialist.email }}\"        \n        }\n      },\n      {\n        \"type\": \"section\",\n        \"text\": {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Immediate Actions Required:*\\nAdminister oxygen, establish IV access, perform ECG\"\n        }\n      },\n      {\n        \"type\": \"actions\",\n        \"elements\": [\n          {\n            \"type\": \"button\",\n            \"text\": {\n              \"type\": \"plain_text\",\n              \"text\": \"Accept Case\"\n            },\n            \"style\": \"primary\",\n            \"value\": \"accept_{{ $json.caseId }}\"\n          },\n          {\n            \"type\": \"button\",\n            \"text\": {\n              \"type\": \"plain_text\",\n              \"text\": \"Reassign\"\n            },\n            \"value\": \"reassign\"\n          }\n        ]\n      }\n    ]\n  }",
+        "text": "=",
+        "otherOptions": {}
+      },
+      "id": "46d36763-f1df-4ecb-a6ba-ae58749113d0",
+      "name": "Slack Specialist Alert1",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [
+        3232,
+        1488
+      ],
+      "webhookId": "c8293af5-3314-485d-9d55-b2b4486d5d76",
+      "credentials": {
+        "slackApi": {
+          "id": "UA1h0mNT2t6RHffA",
+          "name": "Slack acc1"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "multipleMethods": true,
+        "httpMethod": [
+          "POST"
+        ],
+        "path": "slack-interaction",
+        "options": {}
+      },
+      "id": "28529791-79fb-4908-86be-ec1874732aac",
+      "name": "Slack Interaction Handler1",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        1536,
+        1984
+      ],
+      "webhookId": "slack-interaction",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "waitBetweenTries": 500
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process Slack interaction payload\n  const payload = $json.body;\n\n  // Extract interaction data\n  const action = payload.actions[0];\n  const user = payload.user;\n  const actionValue = action.value; // This is \"test-case-123\"\n  const actionId = action.action_id; // This is \"accept_case\"\n\n  // Determine the action taken based on action_id or value content\n  let actionTaken = '';\n  let nextStep = '';\n\n  if (actionId === 'accept_case' || actionValue.includes('accept')) {\n    actionTaken = 'case_accepted';\n    nextStep = 'notify_team_assignment';\n  } else if (actionId === 'reassign_case' || actionValue.includes('reassign')) {\n    actionTaken = 'case_reassigned';\n    nextStep = 'find_alternative_specialist';\n  }\n\n  return [{\n    interactionType: payload.type,\n    actionTaken: actionTaken,\n    actionType: actionTaken, // Add this field for the IF branch\n    caseId: actionValue,\n    respondingUser: {\n      id: user.id,\n      name: user.name\n    },\n    channel: {\n      id: payload.channel.id,\n      name: payload.channel.name\n    },\n    timestamp: new Date().toISOString(),\n    nextStep: nextStep,\n    originalPayload: payload\n  }];"
+      },
+      "id": "d43243dc-239a-4f4b-a5c1-9d80cdc8ecc7",
+      "name": "Parse Slack Response1",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        1984
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.actionType}}",
+              "rightValue": "case_accepted",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "7ffec44d-9919-43d2-975f-cddab3b6e71b"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "66185183-0d47-43d2-b506-bb55ffa90bc5",
+      "name": "Check If Accepted1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        1984
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "case:{{$json.caseId}}",
+        "options": {}
+      },
+      "id": "1e43ec01-1082-46c7-99c8-8ba1c6ab9fb7",
+      "name": "Get Case Data (Redis)1",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2208,
+        1904
+      ],
+      "credentials": {
+        "redis": {
+          "id": "gt4SkNLxW2kJ81uI",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": " SELECT * FROM patient_medical_history\n  WHERE patient_email = '{{ JSON.parse($json.propertyName).email }}';",
+        "options": {}
+      },
+      "id": "84ee68c5-fc54-4f6d-9964-e2da67c3c723",
+      "name": "Get Patient Medical History1",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2416,
+        1824
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "FVTpgk0c7vXSPB73",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "  // Handle case decline - find next specialist\n  const redisData = $('Get Case Data (Redis)1').first().json;\n  const caseData = JSON.parse(redisData.propertyName);\n  const currentIndex = caseData.currentSpecialistIndex || 0;\n  const nextIndex = currentIndex + 1;\n\n  // Note: availableSpecialists is an object, not array in your data structure\n  // We need to get all available specialists again\n  const availableSpecialists = [\n    caseData.availableSpecialists, // Current specialist (Dr. Sarah Jones)\n    // Add fallback specialists\n    {\n      id: 'dr-smith',\n      name: 'Dr. James Smith',\n      specialty: 'Cardiology',\n      slack_id: 'U123456',\n      email: 'dr.smith@hospital.com',\n      availability: 'high'\n    },\n    {\n      id: 'dr-davis',\n      name: 'Dr. Robert Davis',\n      specialty: 'Internal Medicine',\n      slack_id: 'U567890',\n      email: 'dr.davis@hospital.com',\n      availability: 'high'\n    }\n  ];\n\n  if (nextIndex < availableSpecialists.length) {\n    // Assign to next specialist\n    const nextSpecialist = availableSpecialists[nextIndex];\n\n    const updatedCase = {\n      ...caseData,\n      assignedSpecialist: nextSpecialist,\n      currentSpecialistIndex: nextIndex,\n      status: 'reassigned_to_next_specialist',\n      reassignmentTimestamp: new Date().toISOString()\n    };\n\n    return [updatedCase];\n  } else {\n    // No more specialists available\n    const updatedCase = {\n      ...caseData,\n      status: 'no_specialists_available',\n      requiresManualIntervention: true,\n      escalationTimestamp: new Date().toISOString()\n    };\n\n    return [updatedCase];\n  }"
+      },
+      "id": "e2638af0-dda0-4a9c-b49c-c19da0b62ce4",
+      "name": "Handle Case Decline1",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2432,
+        2128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "case:{{$json.caseId}}",
+        "value": "={{JSON.stringify($json)}}"
+      },
+      "id": "d1e5dd5e-00a0-4ff0-9b36-02eb0cb214ed",
+      "name": "Update Case Cache1",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        2128
+      ],
+      "credentials": {
+        "redis": {
+          "id": "gt4SkNLxW2kJ81uI",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.status}}",
+              "rightValue": "reassigned_to_next_specialist",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "d51ee628-ea9d-409d-9489-1cd7319a7aa3"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4f597759-5ced-4158-8e0f-c2cb6e68b58e",
+      "name": "Check If Reassigned1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2848,
+        2128
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#social",
+          "mode": "name"
+        },
+        "messageType": "block",
+        "blocksUi": "={\n    \"blocks\": [\n      {\n        \"type\": \"header\",\n        \"text\": {\n          \"type\": \"plain_text\",\n          \"text\": \"CASE REASSIGNED - URGENT MEDICAL CASE\"\n        }\n      },\n      {\n        \"type\": \"section\",\n        \"text\": {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*REASSIGNMENT ALERT*\\nCase has been reassigned to you due to previous specialist unavailability\"\n        }\n      },\n      {\n        \"type\": \"section\",\n        \"fields\": [\n          {\n            \"type\": \"mrkdwn\",\n            \"text\": \"*Case ID:*\\n{{ $json.caseId }}\"\n          },\n          {\n            \"type\": \"mrkdwn\",\n            \"text\": \"*Patient:*\\n{{ $json.firstName }} {{ $json.lastName }}\"\n          }\n        ]\n      },\n      {\n        \"type\": \"section\",\n        \"text\": {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*URGENCY LEVEL:* {{ $json.urgencyLevel }}/10\\n*Chief Complaint:* {{ $json.chiefComplaint }}\"\n        }\n      },\n      {\n        \"type\": \"divider\"\n      },\n      {\n        \"type\": \"section\",\n        \"text\": {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*NOW ASSIGNED TO:*\\n*Name:* {{ $json.assignedSpecialist.name }}\\n*Specialty:* {{\n  $json.assignedSpecialist.specialty }}\\n*Contact:* {{ $json.assignedSpecialist.email }}\"\n        }\n      },\n      {\n        \"type\": \"section\",\n        \"text\": {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*CRITICAL ACTIONS NEEDED:*\\nAdminister oxygen, establish IV access, perform ECG\"\n        }\n      },\n      {\n        \"type\": \"actions\",\n        \"elements\": [\n          {\n            \"type\": \"button\",\n            \"text\": {\n              \"type\": \"plain_text\",\n              \"text\": \"Accept Reassigned Case\"\n            },\n            \"style\": \"primary\",\n            \"value\": \"accept\"\n          },\n          {\n            \"type\": \"button\",\n            \"text\": {\n              \"type\": \"plain_text\",\n              \"text\": \"Decline - Find Another\"\n            },\n            \"style\": \"danger\",\n            \"value\": \"reassign\"\n          }\n        ]\n      }\n    ]\n  }",
+        "otherOptions": {}
+      },
+      "id": "cece5494-fd91-4e2e-8ef0-67e77123e6a5",
+      "name": "Slack Reassignment Alert1",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [
+        3088,
+        2112
+      ],
+      "webhookId": "927978e8-154a-462b-a024-b5295411008d",
+      "credentials": {
+        "slackApi": {
+          "id": "UA1h0mNT2t6RHffA",
+          "name": "Slack acc1"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "mail",
+        "fromEmail": "pranavgamedev.17@gmail.com",
+        "fromName": "Pranav",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "contentType": "text/html",
+        "contentValue": "={{ $json.html }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [
+        3184,
+        1712
+      ],
+      "id": "9808a62e-9b84-4082-a340-671640392c75",
+      "name": "Email PDF report to Specialist",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "credentials": {
+        "sendGridApi": {
+          "id": "rxbGQJoliMkICgV4",
+          "name": "SendGrid account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze the following patient intake data and provide a comprehensive medical assessment:\n\n  **Patient Information:**\n  - Age: {{ $json.demographics.age }}\n  - Gender: {{ $json.demographics.gender }}\n  - Current Risk Level: {{ $json.riskLevel }}\n  - Urgency Score: {{ $json.urgencyScore }}/10\n\n  **Clinical Presentation:**\n  - Chief Complaint: {{ $json.clinicalData.chiefComplaint }}\n  - Symptoms: {{ $json.clinicalData.symptoms }}\n  - Medical History: {{ $json.clinicalData.medicalHistory }}\n\n  **Assessment Requirements:**\n  1. Provide urgency level (1-10 scale) with justification\n  2. List potential differential diagnoses (top 3-5)\n  3. Identify red flag symptoms or concerns\n  4. Recommend immediate actions or interventions\n  5. Suggest additional tests or evaluations needed\n  6. Provide disposition recommendations (discharge, admit, specialty consult)\n\n  **Response Format:**\n  Provide structured JSON output with the following fields:\n  - urgencyLevel: number (1-10)\n  - urgencyJustification: string\n  - differentialDiagnoses: array of strings\n  - redFlags: array of strings\n  - immediateActions: array of strings\n  - recommendedTests: array of strings\n  - disposition: string\n  - clinicalNotes: string\n\n  Focus on actionable medical guidance while considering the patient's age, gender, and existing medical conditions.",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        2064,
+        1504
+      ],
+      "id": "215256bd-3569-47a8-857b-12e05758773c",
+      "name": "Basic LLM Chain",
+      "retryOnFail": true,
+      "waitBetweenTries": 500,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-Krantiji",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAzureOpenAi",
+      "typeVersion": 1,
+      "position": [
+        2064,
+        1664
+      ],
+      "id": "95fb983b-3541-4c00-8d05-57d05c5dc527",
+      "name": "Azure OpenAI Chat Model",
+      "credentials": {
+        "azureOpenAiApi": {
+          "id": "sUnjqce453NCjTFc",
+          "name": "Azure Open AI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "  // Parse LLM output and extract specialist recommendation\n  const llmText = $json.text;\n\n  // Remove markdown formatting and parse JSON\n  const cleanJson = llmText.replace(/```json\\n?/g, '').replace(/```/g, '').trim();\n  const medicalData = JSON.parse(cleanJson);\n\n  // Map to database specialty names (matching your database exactly)\n  let recommendedSpecialist = 'Internal Medicine'; // default\n\n  if (medicalData.differentialDiagnoses.some(d => d.toLowerCase().includes('coronary') || d.toLowerCase().includes('cardiac'))) {      \n    recommendedSpecialist = 'Cardiology';\n  } else if (medicalData.differentialDiagnoses.some(d => d.toLowerCase().includes('pulmonary') ||\n  d.toLowerCase().includes('embolism'))) {\n    recommendedSpecialist = 'Pulmonology';\n  } else if (medicalData.urgencyLevel >= 8) {\n    recommendedSpecialist = 'Internal Medicine'; // Since you don't have Emergency Medicine\n  }\n\n  return [{\n    ...medicalData,\n    recommendedSpecialist: recommendedSpecialist,\n    parsedFromLLM: true\n  }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2416,
+        1488
+      ],
+      "id": "125caf6e-832d-4af7-a7fc-d9d6d169c0ad",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-Krantiji",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAzureOpenAi",
+      "typeVersion": 1,
+      "position": [
+        2704,
+        1968
+      ],
+      "id": "a875d2ec-031f-4e84-9744-330e97bcd9a5",
+      "name": "Azure OpenAI Chat Model1",
+      "credentials": {
+        "azureOpenAiApi": {
+          "id": "sUnjqce453NCjTFc",
+          "name": "Azure Open AI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Generate a comprehensive medical assessment report integrating the current emergency presentation with the patient's complete\n  medical history:\n\n  **CURRENT EMERGENCY PRESENTATION:**\n  - Patient: John Doe\n  - Age/Gender: 55 years old Male\n  - Chief Complaint: Chest pain and shortness of breath\n  - Current Symptoms: Severe chest pain, difficulty breathing, fatigue\n  - AI Urgency Assessment: 9/10\n  - Assigned Specialist: Dr. James Smith (Cardiology)\n\n  **PATIENT MEDICAL HISTORY:**\n  - Known Allergies: {{ $json.allergies.join(', ') }}\n  - Current Medications: {{ $json.medications.join(', ') }}\n  - Medical Conditions: {{ $json.medical_conditions.join(', ') }}\n  - Previous Procedures: {{ $json.previous_procedures.join(', ') }}\n  - Recent Lab Results: HbA1c {{ $json.lab_results.hba1c }}, Weight {{ $json.lab_results.weight }}, Cholesterol {{\n  $json.lab_results.cholesterol }}, BP {{ $json.lab_results.blood_pressure }}\n  - Family History: {{ $json.family_history }}\n\n  **AI DIFFERENTIAL DIAGNOSES:**\n  - Acute Coronary Syndrome (e.g., myocardial infarction or unstable angina)\n  - Pulmonary Embolism\n  - Aortic Dissection\n  - Heart Failure Exacerbation\n  - Pneumothorax\n\n  **REPORT REQUIREMENTS:**\n  Generate a structured medical report with these sections:\n\n  1. **EXECUTIVE SUMMARY** - Brief overview of case urgency and key findings\n  2. **PATIENT DEMOGRAPHICS & CONTACT** - Complete patient information\n  3. **CHIEF COMPLAINT & HISTORY OF PRESENT ILLNESS** - Detailed current presentation\n  4. **PAST MEDICAL HISTORY** - Comprehensive historical context\n  5. **MEDICATIONS & ALLERGIES** - Current therapy and contraindications\n  6. **CLINICAL ASSESSMENT** - Integration of current symptoms with history\n  7. **RISK STRATIFICATION** - Patient risk factors and complications\n  8. **DIFFERENTIAL DIAGNOSIS** - Ranked diagnostic considerations with rationale\n  9. **RECOMMENDED IMMEDIATE INTERVENTIONS** - Priority actions\n  10. **DIAGNOSTIC WORKUP** - Suggested tests and procedures\n  11. **SPECIALIST CONSULTATION** - Rationale for specialist assignment\n  12. **DISPOSITION & FOLLOW-UP** - Care plan and monitoring requirements\n  13. **CLINICAL NOTES** - Additional observations and considerations\n\n  **OUTPUT FORMAT:** Provide as structured markdown suitable for PDF conversion with professional medical formatting.\n\n  **CRITICAL:** Integrate all historical data with current presentation to provide comprehensive clinical context for the attending    \n   physician.",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        2592,
+        1824
+      ],
+      "id": "487a4526-c85b-47ac-b3f3-60bc09781328",
+      "name": "Basic LLM Chain1",
+      "retryOnFail": true,
+      "waitBetweenTries": 500,
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "functionCode": "  // Combine all data sources for comprehensive email report\n  const llmReport = $json.text; // Current LLM node output\n  const patientHistory = $('Get Patient Medical History1').first().json;\n  const acceptanceData = $('Check If Accepted1').first().json;\n\n  // Extract specialist information from acceptance data\n  const specialistName = acceptanceData.respondingUser.name;\n  const specialistSlackId = acceptanceData.respondingUser.id;\n\n  // Map Slack ID to email\n  const specialistEmailMapping = {\n    \"U123456\": \"dr.smith@hospital.com\",\n    \"U789012\": \"dr.jones@hospital.com\",\n    \"U567890\": \"dr.davis@hospital.com\"\n  };\n\n  const specialistEmail = specialistEmailMapping[specialistSlackId] || \"unknown@hospital.com\";\n\n  // Extract key information from LLM report\n  const rawMarkdown = llmReport.replace(/```markdown\\n?/g, '').replace(/```/g, '').trim();\n\n  // Extract patient name and urgency\n  const patientNameMatch = rawMarkdown.match(/\\*\\*Name:\\*\\*\\s*([^\\n\\r]*)/);\n  const patientName = patientNameMatch ? patientNameMatch[1].trim() : 'Unknown Patient';\n\n  const urgencyMatch = rawMarkdown.match(/\\*\\*Urgency Level:\\*\\*\\s*(\\d+)\\/10/);\n  const urgencyLevel = urgencyMatch ? parseInt(urgencyMatch[1]) : 0;\n\n  const caseId = acceptanceData.caseId !== 'accept' ? acceptanceData.caseId : `CASE-${Date.now()}`;\n\n  // Convert markdown to HTML - FIXED STRING ESCAPING\n  function markdownToHtml(markdown) {\n    return markdown\n      .replace(/^# (.*$)/gm, '<h1 style=\"color: #dc3545; margin-top: 30px;\">$1</h1>')\n      .replace(/^## (.*$)/gm, '<h2 style=\"color: #0056b3; margin-top: 25px;\">$1</h2>')\n      .replace(/^### (.*$)/gm, '<h3 style=\"color: #666; margin-top: 20px;\">$1</h3>')\n      .replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')\n      .replace(/\\*(.*?)\\*/g, '<em>$1</em>')\n      .replace(/^[\\s]*- (.*$)/gm, '<li>$1</li>')\n      .replace(/(<li.*<\\/li>)/s, '<ul>$1</ul>')\n      .replace(/\\n\\n/g, '<br><br>')\n      .replace(/\\n/g, '<br>')\n      .replace(/---/g, '<hr>');\n  }\n\n  // Create email subject\n  const emailSubject = `ACCEPTED CASE (${urgencyLevel}/10) - ${patientName} | Specialist: ${specialistName} | Case: ${caseId}`;        \n\n  // Create HTML email body - SIMPLIFIED CSS TO AVOID STRING ISSUES\n  const htmlBody = `<!DOCTYPE html>\n  <html>\n  <head>\n      <meta charset=\"UTF-8\">\n      <style>\n          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 1000px; margin: 0 auto; }\n          .header { background: #dc3545; color: white; padding: 25px; text-align: center; }\n          .urgency { background: #dc3545; color: white; padding: 20px; text-align: center; font-weight: bold; font-size: 18px; }       \n          .content { padding: 30px; }\n          .info-box { background: #f8f9fa; padding: 20px; border-left: 5px solid #0056b3; margin: 20px 0; }\n          .action-box { background: #d4edda; padding: 25px; border: 2px solid #c3e6cb; margin: 25px 0; }\n          .footer { background: #f8f9fa; padding: 20px; text-align: center; border-top: 2px solid #ddd; }\n          .accepted { background: #d4edda; color: #155724; padding: 15px; margin: 15px 0; text-align: center; font-weight: bold; }     \n          ul { padding-left: 20px; }\n          li { margin: 8px 0; }\n          h1 { color: #dc3545; }\n          h2 { color: #0056b3; }\n      </style>\n  </head>\n  <body>\n      <div class=\"header\">\n          <h1>MEDICAL CASE CONFIRMATION</h1>\n          <p>Case Accepted & Complete Medical Assessment</p>\n      </div>\n\n      <div class=\"urgency\">\n          URGENCY LEVEL: ${urgencyLevel}/10 - CASE ACCEPTED BY ${specialistName}\n      </div>\n\n      <div class=\"content\">\n          <div class=\"accepted\">\n              ✅ This case has been ACCEPTED by ${specialistName} at ${new Date(acceptanceData.timestamp).toLocaleString()}\n          </div>\n\n          <div class=\"info-box\">\n              <h3>Assigned Specialist:</h3>\n              <ul>\n                  <li><strong>Name:</strong> ${specialistName}</li>\n                  <li><strong>Email:</strong> ${specialistEmail}</li>\n                  <li><strong>Accepted:</strong> ${new Date(acceptanceData.timestamp).toLocaleString()}</li>\n              </ul>\n          </div>\n\n          <div class=\"info-box\">\n              <h3>Patient Information:</h3>\n              <ul>\n                  <li><strong>Name:</strong> ${patientName}</li>\n                  <li><strong>Email:</strong> ${patientHistory.patient_email}</li>\n                  <li><strong>Emergency Contact:</strong> ${patientHistory.emergency_contact}</li>\n                  <li><strong>Case ID:</strong> ${caseId}</li>\n              </ul>\n\n              <h4>CRITICAL - Current Medications:</h4>\n              <ul>\n                  ${patientHistory.medications.map(med => `<li>${med}</li>`).join('')}\n              </ul>\n\n              <h4>ALERT - Known Allergies:</h4>\n              <ul style=\"color: #dc3545; font-weight: bold;\">\n                  ${patientHistory.allergies.map(allergy => `<li>⚠️ ${allergy}</li>`).join('')}\n              </ul>\n          </div>\n\n          <div class=\"action-box\">\n              <h3>IMMEDIATE ACTIONS REQUIRED:</h3>\n              <ul>\n                  <li><strong>Contact Patient:</strong> ${patientHistory.emergency_contact}</li>\n                  <li><strong>Review Allergies:</strong> ${patientHistory.allergies.join(', ')}</li>\n                  <li><strong>Schedule ${urgencyLevel >= 8 ? 'IMMEDIATE' : 'URGENT'} consultation</strong></li>\n                  <li><strong>Response Time:</strong> Within ${urgencyLevel >= 8 ? '15 minutes' : '1 hour'}</li>\n              </ul>\n          </div>\n\n         <div class=\"calendar-box\">\n              <h3>📅 SCHEDULE PATIENT APPOINTMENT</h3>\n              <p>Click the button below to send a Calendly invite to the patient:</p>\n              <a href=\"http://localhost:5678/webhook-test/send-calendly?caseId=${caseId}&specialist=${specialistName}&patientEmail=    \n  ${patientHistory.patient_email}\" class=\"calendar-btn\">\n                  Send Calendly Invite to Patient\n              </a>\n              <p style=\"font-size: 12px; color: #666; margin-top: 15px;\">This will email the patient with your available\n  appointment times.</p>\n          </div>\n\n          <div class=\"info-box\">\n              <h2>Complete Medical Assessment:</h2>\n              ${markdownToHtml(rawMarkdown)}\n          </div>\n      </div>\n\n      <div class=\"footer\">\n          <p><strong>Case ID:</strong> ${caseId} | <strong>Patient:</strong> ${patientName} | <strong>Specialist:</strong>\n  ${specialistName}</p>\n          <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>\n          <p>Healthcare AI Pipeline System - Case Status: ACCEPTED</p>\n      </div>\n  </body>\n  </html>`;\n\n  // Return email data\n  return [{\n    to: specialistEmail,\n    subject: emailSubject,\n    html: htmlBody,\n    metadata: {\n      caseId: caseId,\n      specialistName: specialistName,\n      specialistEmail: specialistEmail,\n      urgencyLevel: urgencyLevel,\n      patientName: patientName,\n      patientEmail: patientHistory.patient_email,\n      timestamp: new Date().toISOString()\n    }\n  }];"
+      },
+      "id": "c1716169-ac3a-4d0b-b524-4ab61448520c",
+      "name": "Format Report",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2960,
+        1712
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "mail",
+        "fromEmail": "pranavgamedev.17@gmail.com",
+        "fromName": "Pranav",
+        "toEmail": "=pmishr23@uic.edu",
+        "subject": "={{ $json.subject }}",
+        "contentType": "text/html",
+        "contentValue": "={{ $json.html }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [
+        3184,
+        1888
+      ],
+      "id": "8a9ea832-264d-4f38-b37d-257c4b220e69",
+      "name": "Email PDF report to Specialist1",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "credentials": {
+        "sendGridApi": {
+          "id": "rxbGQJoliMkICgV4",
+          "name": "SendGrid account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "send-calendly",
+        "options": {
+          "responseData": ""
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        1536,
+        2272
+      ],
+      "id": "f56f15c2-6ad5-41f2-aecc-1ae2558cd834",
+      "name": "Webhook",
+      "webhookId": "71ffe3a0-af66-4715-a745-bb1078829660"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract parameters from the webhook URL and decode them properly\n  const caseId = $json.query.caseId;\n  const specialistName = decodeURIComponent($json.query.specialist.replace(/0/g, ' '));\n  const patientEmail = decodeURIComponent($json.query.patientEmail.replace(/0/g, '@'));\n\n  // Use your provided Calendly link for all specialists for now\n  const calendlyUrl = \"https://calendly.com/pranavgamedev-17/30min\";\n\n  // Get patient name from case ID or use default\n  const patientName = \"John Doe\"; // You could extract this from case data if needed\n\n  // Create email subject and content\n  const emailSubject = `📅 Medical Appointment Scheduling - Case ${caseId}`;\n\n  // Create HTML email for patient\n  const patientEmailHtml = `\n  <!DOCTYPE html>\n  <html>\n  <head>\n      <meta charset=\"UTF-8\">\n      <style>\n          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }\n          .header { background: #28a745; color: white; padding: 20px; text-align: center; }\n          .content { padding: 30px; }\n          .calendly-button { background: #0056b3; color: white; padding: 20px 40px; text-decoration: none; border-radius: 8px;\n  font-weight: bold; display: inline-block; margin: 20px 0; font-size: 18px; }\n          .info-box { background: #f8f9fa; padding: 20px; border-left: 5px solid #28a745; margin: 20px 0; }\n          .footer { background: #f8f9fa; padding: 15px; text-align: center; font-size: 12px; margin-top: 30px; }\n      </style>\n  </head>\n  <body>\n      <div class=\"header\">\n          <h1>📅 Medical Appointment Scheduling</h1>\n          <p>Your healthcare provider is ready to see you</p>\n      </div>\n\n      <div class=\"content\">\n          <h2>Hello ${patientName},</h2>\n\n          <div class=\"info-box\">\n              <p><strong>${specialistName}</strong> has accepted your medical case and would like to schedule an appointment with      \n  you.</p>\n              <ul>\n                  <li><strong>Case ID:</strong> ${caseId}</li>\n                  <li><strong>Specialist:</strong> ${specialistName}</li>\n                  <li><strong>Priority:</strong> High Priority Case</li>\n              </ul>\n          </div>\n\n          <p>Please click the button below to view available appointment times and schedule your consultation:</p>\n\n          <div style=\"text-align: center;\">\n              <a href=\"${calendlyUrl}\" class=\"calendly-button\">\n                  📅 Schedule My Appointment\n              </a>\n          </div>\n\n          <p><strong>Important:</strong> Please schedule your appointment as soon as possible due to the urgent nature of your\n  case.</p>\n\n          <p>If you have any questions, please contact us directly at the number provided during your initial consultation.</p>        \n\n          <div class=\"info-box\">\n              <h4>What to expect:</h4>\n              <ul>\n                  <li>Select a convenient appointment time</li>\n                  <li>Receive confirmation email with details</li>\n                  <li>Get calendar reminder before your appointment</li>\n                  <li>Join the consultation via the provided link or phone</li>\n              </ul>\n          </div>\n      </div>\n\n      <div class=\"footer\">\n          <p><strong>Case ID:</strong> ${caseId} | <strong>Specialist:</strong> ${specialistName}</p>\n          <p>Healthcare AI Pipeline System</p>\n          <p><em>Please schedule your appointment within 24 hours</em></p>\n      </div>\n  </body>\n  </html>\n  `;\n\n  return [{\n    // Email configuration\n    to: patientEmail,\n    subject: emailSubject,\n    html: patientEmailHtml,\n\n    // Metadata for tracking\n    metadata: {\n      caseId: caseId,\n      specialistName: specialistName,\n      patientEmail: patientEmail,\n      calendlyUrl: calendlyUrl,\n      timestamp: new Date().toISOString(),\n      emailType: 'calendly_invite'\n    }\n  }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1744,
+        2272
+      ],
+      "id": "15600208-6fba-46da-8e92-43dfbba82758",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "resource": "mail",
+        "fromEmail": "pranavgamedev.17@gmail.com",
+        "fromName": "Pranav",
+        "toEmail": "=pmishr23@uic.edu",
+        "subject": "={{ $json.subject }}",
+        "contentType": "text/html",
+        "contentValue": "={{ $json.html }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [
+        1968,
+        2496
+      ],
+      "id": "74923005-ce2d-4468-97ab-55ee1d50645c",
+      "name": "Email PDF report to Specialist2",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "credentials": {
+        "sendGridApi": {
+          "id": "rxbGQJoliMkICgV4",
+          "name": "SendGrid account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "mail",
+        "fromEmail": "pranavgamedev.17@gmail.com",
+        "fromName": "Pranav",
+        "toEmail": "={{ $json.patientEmail }}",
+        "subject": "=📅 Schedule Your Medical Appointment - Case {{ $json.caseId }}",
+        "contentType": "text/html",
+        "contentValue": "= const patientEmailHtml = `\n  <!DOCTYPE html>\n  <html>\n  <head>\n      <meta charset=\"UTF-8\">\n      <style>\n          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }\n          .header { background: #28a745; color: white; padding: 20px; text-align: center; }\n          .content { padding: 30px; }\n          .calendly-button { background: #0056b3; color: white; padding: 20px 40px; text-decoration: none; border-radius: 8px;\n  font-weight: bold; display: inline-block; margin: 20px 0; font-size: 18px; }\n          .info-box { background: #f8f9fa; padding: 20px; border-left: 5px solid #28a745; margin: 20px 0; }\n      </style>\n  </head>\n  <body>\n      <div class=\"header\">\n          <h1>📅 Medical Appointment Scheduling</h1>\n          <p>Your healthcare provider is ready to see you</p>\n      </div>\n\n      <div class=\"content\">\n          <h2>Hello ${patientName},</h2>\n\n          <div class=\"info-box\">\n              <p><strong>${specialistName}</strong> has accepted your medical case and would like to schedule an appointment with      \n  you.</p>\n              <ul>\n                  <li><strong>Case ID:</strong> ${caseId}</li>\n                  <li><strong>Specialist:</strong> ${specialistName}</li>\n                  <li><strong>Urgency Level:</strong> High Priority</li>\n              </ul>\n          </div>\n\n          <p>Please click the button below to view available appointment times and schedule your consultation:</p>\n\n          <div style=\"text-align: center;\">\n              <a href=\"${calendlyUrl}\" class=\"calendly-button\">\n                  📅 Schedule My Appointment\n              </a>\n          </div>\n\n          <p><strong>Important:</strong> Please schedule your appointment as soon as possible due to the urgent nature of your\n  case.</p>\n\n          <p>If you have any questions, please contact us directly.</p>\n      </div>\n  </body>\n  </html>\n  `;\n\n  return [{\n    html: patientEmailHtml,\n    patientEmail: $json.patientEmail,\n    subject: `📅 Schedule Your Medical Appointment - Case ${$json.caseId}`\n  }];",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [
+        1968,
+        2272
+      ],
+      "id": "7d4bcc3b-7625-4826-82f0-7f398f01b2b1",
+      "name": "Email PDF report to Specialist3",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "credentials": {
+        "sendGridApi": {
+          "id": "rxbGQJoliMkICgV4",
+          "name": "SendGrid account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Patient Intake Webhook1": {
+      "main": [
+        [
+          {
+            "node": "PHI Detection & Encryption1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PHI Detection & Encryption1": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Available Specialists1": {
+      "main": [
+        [
+          {
+            "node": "Specialist Assignment Logic1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Specialist Assignment Logic1": {
+      "main": [
+        [
+          {
+            "node": "Cache Case Data (Redis)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cache Case Data (Redis)1": {
+      "main": [
+        [
+          {
+            "node": "Slack Specialist Alert1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Interaction Handler1": {
+      "main": [
+        [
+          {
+            "node": "Parse Slack Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Slack Response1": {
+      "main": [
+        [
+          {
+            "node": "Check If Accepted1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Accepted1": {
+      "main": [
+        [
+          {
+            "node": "Get Case Data (Redis)1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Case Data (Redis)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Case Data (Redis)1": {
+      "main": [
+        [
+          {
+            "node": "Get Patient Medical History1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Handle Case Decline1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Patient Medical History1": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Case Decline1": {
+      "main": [
+        [
+          {
+            "node": "Update Case Cache1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Case Cache1": {
+      "main": [
+        [
+          {
+            "node": "Check If Reassigned1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Reassigned1": {
+      "main": [
+        [
+          {
+            "node": "Slack Reassignment Alert1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Email PDF report to Specialist": {
+      "main": [
+        []
+      ]
+    },
+    "Azure OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Get Available Specialists1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Azure OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain1": {
+      "main": [
+        [
+          {
+            "node": "Format Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Report": {
+      "main": [
+        [
+          {
+            "node": "Email PDF report to Specialist",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email PDF report to Specialist1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Email PDF report to Specialist2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email PDF report to Specialist3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a4663cba-fb2e-4b70-a363-e425d617c84c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5ad4520db7ede749ce74739d58c42ae28d858dc6bfbab04f2620c71f6284e574"
+  },
+  "id": "UjDYYJKjZlluAnVg",
+  "tags": []
+}

@@ -182,3 +182,4 @@ swagger_output/
 build/
 dist/
 out/
+package-lock.json
