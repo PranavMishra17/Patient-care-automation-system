@@ -30,12 +30,6 @@ This system implements a **complete healthcare automation pipeline** that transf
 - **Medical Report Generation**: Comprehensive clinical assessments with differential diagnoses
 - **Risk Stratification**: Automatic identification of high-risk patients requiring immediate attention
 
-### 🔐 **HIPAA-Compliant Security**
-- **PHI Encryption**: AES-256 encryption for Protected Health Information with configurable keys
-- **Selective Data Masking**: Automatic detection and encryption of sensitive patient identifiers
-- **Audit Trail**: Complete logging of all data access, modifications, and workflow executions
-- **Secure Communications**: End-to-end encryption for all patient data transmissions
-
 ### 💬 **Multi-Channel Communication**
 - **Slack Integration**: Real-time specialist notifications with interactive accept/decline buttons
 - **Email Automation**: SendGrid-powered professional medical reports and appointment confirmations  
@@ -47,6 +41,14 @@ This system implements a **complete healthcare automation pipeline** that transf
 - **Redis Caching**: Fast retrieval of active cases and real-time alert management
 - **Case Management**: Comprehensive tracking from intake to resolution with reassignment capability
 - **Medical History Integration**: Full patient context including medications, allergies, and procedures
+
+## Potential Add-ons for future
+
+### 🔐 **HIPAA-Compliant Security**
+- **PHI Encryption**: AES-256 encryption for Protected Health Information with configurable keys
+- **Selective Data Masking**: Automatic detection and encryption of sensitive patient identifiers
+- **Audit Trail**: Complete logging of all data access, modifications, and workflow executions
+- **Secure Communications**: End-to-end encryption for all patient data transmissions
 
 ## 🏗️ System Architecture
 
