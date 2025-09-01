@@ -103,60 +103,15 @@ This system implements a **complete healthcare automation pipeline** that transf
   **Initial Case Assignment to Specialist 1** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **Case Reassignment to Specialist 2**
 </div>
 
-### 📧 Specialist Medical Report
-<div align="center">
-  <img src="notifications/mail1.png" alt="Email Report - Case Acceptance Confirmation" width="400"/>
-  
-  <div style="flex: 1; padding-left: 20px;">
-    
-  ## 📋 Comprehensive Clinical Assessment
-  
-  This automated email report is generated and sent to the accepting specialist immediately upon case acceptance. The report contains:
-  
-  **Patient Overview**
-  - Anonymized patient demographics and medical history
-  - Chief complaint and presenting symptoms
-  - Relevant medical background and medications
-  
-  **AI-Generated Analysis**
-  - GPT-4 powered differential diagnosis suggestions
-  - Risk stratification and urgency assessment
-  - Clinical decision support recommendations
-  
-  **Case Management Details**
-  - Unique case identifier for tracking
-  - Assignment timestamp and workflow status
-  - Next steps and follow-up requirements
-  
-  </div>
-</div>
 
-### 🗓️ Patient Appointment Notification
+### 🗓️ Mail Appointment Notifications
+
 <div align="center">
-  <img src="notifications/mail2.png" alt="Patient Notification - Case Accepted with Scheduling" width="400"/>
+  <img src="notifications/mail2.png" alt="Patient Appointment Notification" width="400"/>
   
-  <div style="flex: 1; padding-left: 20px;">
-    
-  ## 🎯 Seamless Patient Experience
+  **1. Specialist Medical Report** - Comprehensive clinical assessment with AI analysis sent to accepting specialist
   
-  This notification is automatically sent to the patient once a specialist accepts their case, providing a smooth transition to care coordination.
-  
-  **Case Confirmation**
-  - Specialist acceptance acknowledgment
-  - Assigned healthcare provider credentials
-  - Expected response timeline and next steps
-  
-  **Integrated Scheduling**
-  - Direct Calendly integration for appointment booking
-  - Available time slots based on specialist availability
-  - Automated calendar sync and reminder setup
-  
-  **Support Resources**
-  - Contact information for technical assistance
-  - Preparation instructions for the appointment
-  - Emergency contact protocols if needed
-  
-  </div>
+  **2. Patient Appointment Notification** - Case acceptance confirmation with Calendly scheduling link
 </div>
 
 ---
