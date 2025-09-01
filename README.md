@@ -107,7 +107,7 @@ This system implements a **complete healthcare automation pipeline** that transf
 ### 🗓️ Mail Appointment Notifications
 
 <div align="center">
-  <img src="notifications/mail2.png" alt="Patient Appointment Notification" width="400"/>
+  <img src="notifications/mail2.png" alt="Patient Appointment Notification" width="800"/>
   
   **1. Specialist Medical Report** - Comprehensive clinical assessment with AI analysis sent to accepting specialist
   
