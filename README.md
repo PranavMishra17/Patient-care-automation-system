@@ -104,7 +104,7 @@ This system implements a **complete healthcare automation pipeline** that transf
 </div>
 
 ### 📧 Specialist Medical Report
-<div style="display: flex; align-items: flex-start; gap: 20px; margin: 30px 0;">
+<div align="center">
   <img src="notifications/mail1.png" alt="Email Report - Case Acceptance Confirmation" width="400"/>
   
   <div style="flex: 1; padding-left: 20px;">
@@ -132,7 +132,7 @@ This system implements a **complete healthcare automation pipeline** that transf
 </div>
 
 ### 🗓️ Patient Appointment Notification
-<div style="display: flex; align-items: flex-start; gap: 20px; margin: 30px 0;">
+<div align="center">
   <img src="notifications/mail2.png" alt="Patient Notification - Case Accepted with Scheduling" width="400"/>
   
   <div style="flex: 1; padding-left: 20px;">
