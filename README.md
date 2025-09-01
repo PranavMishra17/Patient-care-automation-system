@@ -91,59 +91,24 @@ This system implements a **complete healthcare automation pipeline** that transf
 9. **Email Delivery** → Professional medical reports sent to specialists
 10. **Appointment Scheduling** → Calendly integration for patient appointment booking
 
-
 ---
 
 ## 📸 Workflow Documentation Gallery
 
 ### 🔔 Slack Bot Notifications
-<div style="display: flex; gap: 20px; margin: 30px 0; align-items: flex-start;">
-
-<div style="flex: 1; border: 2px solid #e1e5e9; border-radius: 8px; padding: 15px; background-color: #f8f9fa;">
-<img src="notifications/slack1.png" alt="Slack Bot Message - Primary Specialist Assignment" style="width: 100%; max-width: 400px; height: auto; border-radius: 6px; border: 1px solid #ddd;">
-<p style="text-align: center; margin-top: 10px; font-weight: bold; color: #2c3e50;">
-📋 Initial Case Assignment to Specialist 1
-</p>
-<p style="text-align: center; font-size: 14px; color: #666; margin: 5px 0;">
-First notification with case details and action buttons
-</p>
+<div align="center">
+  <img src="notifications/slack1.png" alt="Slack Bot Message - Primary Specialist Assignment" width="400"/>
+  <img src="notifications/slack2.png" alt="Slack Bot Message - Secondary Specialist Assignment" width="400"/>
+  
+  **Initial Case Assignment to Specialist 1** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **Case Reassignment to Specialist 2**
 </div>
 
-<div style="flex: 1; border: 2px solid #e1e5e9; border-radius: 8px; padding: 15px; background-color: #f8f9fa;">
-<img src="notifications/slack2.png" alt="Slack Bot Message - Secondary Specialist Assignment" style="width: 100%; max-width: 400px; height: auto; border-radius: 6px; border: 1px solid #ddd;">
-<p style="text-align: center; margin-top: 10px; font-weight: bold; color: #2c3e50;">
-🔄 Case Reassignment to Specialist 2
-</p>
-<p style="text-align: center; font-size: 14px; color: #666; margin: 5px 0;">
-Automatic reassignment after decline from first specialist
-</p>
-</div>
-
-</div>
-
-### 📧 Professional Medical Communications
-<div style="display: flex; gap: 20px; margin: 30px 0; align-items: flex-start;">
-
-<div style="flex: 1; border: 2px solid #e1e5e9; border-radius: 8px; padding: 15px; background-color: #f8f9fa;">
-<img src="notifications/mail1.png" alt="Email Report - Case Acceptance Confirmation" style="width: 100%; max-width: 400px; height: auto; border-radius: 6px; border: 1px solid #ddd;">
-<p style="text-align: center; margin-top: 10px; font-weight: bold; color: #2c3e50;">
-📧 Specialist Medical Report
-</p>
-<p style="text-align: center; font-size: 14px; color: #666; margin: 5px 0;">
-Comprehensive clinical assessment sent to accepting specialist
-</p>
-</div>
-
-<div style="flex: 1; border: 2px solid #e1e5e9; border-radius: 8px; padding: 15px; background-color: #f8f9fa;">
-<img src="notifications/mail2.png" alt="Patient Notification - Case Accepted with Scheduling" style="width: 100%; max-width: 400px; height: auto; border-radius: 6px; border: 1px solid #ddd;">
-<p style="text-align: center; margin-top: 10px; font-weight: bold; color: #2c3e50;">
-🗓️ Patient Appointment Notification
-</p>
-<p style="text-align: center; font-size: 14px; color: #666; margin: 5px 0;">
-Case acceptance confirmation with Calendly scheduling link
-</p>
-</div>
-
+### 📧 Professional Medical Communications  
+<div align="center">
+  <img src="notifications/mail1.png" alt="Email Report - Case Acceptance Confirmation" width="400"/>
+  <img src="notifications/mail2.png" alt="Patient Notification - Case Accepted with Scheduling" width="400"/>
+  
+  **Specialist Medical Report** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **Patient Appointment Notification**
 </div>
 
 ---
